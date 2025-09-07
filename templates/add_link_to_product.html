@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Dodaj link - {{ product.name }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('products.product_detail', product_id=product.id) }}" style="color: #007bff; text-decoration: none;">← Powrót do produktu</a>
+</div>
+
+<h1>Dodaj link do sklepu</h1>
+
+<div style="background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 5px;">
+    <strong>Produkt:</strong> {{ product.name }}<br>
+    {% if product.ean %}<strong>EAN:</strong> {{ product.ean }}{% endif %}
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin: 10px 0; color: #721c24;">
+            {% for message in messages %}
+                <div>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<form method="POST" id="link-form">
+    <div class="form-group">
+        <label for="url"><strong>URL produktu w sklepie:</strong></label><br>
+        <input type="url" id="url" name="url" required style="width: 500px;" 
+               placeholder="https://allegro.pl/oferta/...">
+        <button type="button" onclick="parseUrl()" class="btn" style="background: #28a745;">🔍 Sprawdź sklep</button>
+    </div>
+    
+    <div id="parsing-status" style="display: none; padding: 10px; margin: 10px 0;"></div>
+    
+    <div class="form-group" id="seller-group" style="display: none;">
+        <label for="seller"><strong>Sprzedawca Allegro:</strong></label><br>
+        <input type="text" id="seller" name="seller" style="width: 300px;" 
+               placeholder="np. MediaMarkt, x-kom">
+        <small style="color: #666;"><br>Zostanie wykryte automatycznie lub podaj ręcznie</small>
+    </div>
+    
+    <div class="form-group">
+        <button type="submit" class="btn">💾 Dodaj link</button>
+        <a href="{{ url_for('products.product_detail', product_id=product.id) }}" class="btn" style="background: #6c757d;">Anuluj</a>
+    </div>
+</form>
+
+<script>
+function parseUrl() {
+    const url = document.getElementById('url').value;
+    if (!url) {
+        alert('Wpisz URL!');
+        return;
+    }
+    
+    const status = document.getElementById('parsing-status');
+    status.style.display = 'block';
+    status.innerHTML = '⏳ Sprawdzanie sklepu...';
+    status.style.background = '#fff3cd';
+    status.style.color = '#856404';
+    
+    fetch(`/parse_url?url=${encodeURIComponent(url)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success || data.shop_id) {
+                status.innerHTML = `✅ Sklep: <strong>${data.shop_id}</strong>`;
+                status.style.background = '#d4edda';
+                status.style.color = '#155724';
+                
+                if (data.is_allegro) {
+                    document.getElementById('seller-group').style.display = 'block';
+                    if (data.seller) {
+                        document.getElementById('seller').value = data.seller;
+                        status.innerHTML += ` | Sprzedawca: <strong>${data.seller}</strong>`;
+                    }
+                } else {
+                    document.getElementById('seller-group').style.display = 'none';
+                }
+            } else {
+                status.innerHTML = '⚠️ Nie udało się zidentyfikować sklepu.';
+                status.style.background = '#f8d7da';
+                status.style.color = '#721c24';
+                
+                // Sprawdź czy to Allegro
+                if (url.toLowerCase().includes('allegro')) {
+                    document.getElementById('seller-group').style.display = 'block';
+                }
+            }
+        })
+        .catch(error => {
+            status.innerHTML = '⚠️ Błąd: ' + error;
+            status.style.background = '#f8d7da';
+            status.style.color = '#721c24';
+        });
+}
+
+// Auto-parsing po wpisaniu URL
+let urlTimeout;
+document.getElementById('url').addEventListener('input', function() {
+    clearTimeout(urlTimeout);
+    urlTimeout = setTimeout(function() {
+        const url = document.getElementById('url').value;
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+            parseUrl();
+        }
+    }, 1500);
+});
+</script>
+
+{% endblock %}

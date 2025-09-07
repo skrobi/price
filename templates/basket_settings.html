@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Ustawienia koszyka: {{ basket.name }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('baskets.basket_detail', basket_id=basket.basket_id) }}" style="color: #007bff; text-decoration: none;">← Powrót do koszyka</a>
+</div>
+
+<h1>⚙️ Ustawienia koszyka</h1>
+
+<div style="background: #f8f9fa; padding: 15px; margin: 15px 0; border-radius: 5px;">
+    <strong>Koszyk:</strong> {{ basket.name }}<br>
+    <strong>ID:</strong> {{ basket.basket_id }}<br>
+    <strong>Produkty:</strong> {{ basket.basket_items|length }}<br>
+    <strong>Utworzony:</strong> {{ basket.created[:19] }}<br>
+    <strong>Ostatnio zmodyfikowany:</strong> {{ basket.updated[:19] }}
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 10px; margin: 10px 0; color: #155724; border-radius: 5px;">
+            {% for message in messages %}
+                <div>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<form method="POST">
+    <div class="form-group" style="margin: 15px 0;">
+        <label><strong>📝 Nazwa koszyka:</strong></label><br>
+        <input type="text" name="name" value="{{ basket.name }}" style="width: 400px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+    </div>
+
+    <div class="form-group" style="margin: 15px 0;">
+        <label><strong>🎯 Priorytet optymalizacji:</strong></label><br>
+        <select name="priority" style="width: 300px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <option value="lowest_total_cost" {% if basket.optimization_settings.priority == 'lowest_total_cost' %}selected{% endif %}>
+                💰 Najniższy koszt całkowity
+            </option>
+            <option value="fewest_shops" {% if basket.optimization_settings.priority == 'fewest_shops' %}selected{% endif %}>
+                🏪 Najmniej sklepów
+            </option>
+            <option value="balanced" {% if basket.optimization_settings.priority == 'balanced' %}selected{% endif %}>
+                ⚖️ Zbalansowany
+            </option>
+        </select>
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+            <strong>Najniższy koszt:</strong> Minimalizuje całkowitą kwotę<br>
+            <strong>Najmniej sklepów:</strong> Preferuje konsolidację zamówień<br>
+            <strong>Zbalansowany:</strong> Kompromis między ceną a liczbą sklepów (kara 15 PLN za każdy dodatkowy sklep)
+        </div>
+    </div>
+
+    <div class="form-group" style="margin: 15px 0;">
+        <label><strong>🏪 Maksymalna liczba sklepów:</strong></label><br>
+        <input type="range" name="max_shops" 
+               value="{{ basket.optimization_settings.max_shops }}" 
+               min="1" max="10" step="1"
+               oninput="updateShopsDisplay(this.value)"
+               style="width: 200px;">
+        <span id="shops-display" style="margin-left: 10px; font-weight: bold;">{{ basket.optimization_settings.max_shops }}</span>
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+            Ogranicza liczbę sklepów w optymalnym rozwiązaniu. Mniej sklepów = wygoda, więcej sklepów = potencjalnie niższe ceny.
+        </div>
+    </div>
+
+    <!-- NOWA SEKCJA: Ustawienia zamienników -->
+    <div style="margin: 25px 0; padding: 20px; background: #e8f5e8; border-radius: 8px; border-left: 4px solid #28a745;">
+        <h3 style="margin-top: 0;">🔄 Ustawienia zamienników produktów</h3>
+        
+        <div class="form-group" style="margin: 15px 0;">
+            <label style="display: flex; align-items: center;">
+                <input type="checkbox" name="allow_substitutes" 
+                       {% if basket.optimization_settings.get('substitute_settings', {}).get('allow_substitutes', True) %}checked{% endif %}
+                       onchange="toggleSubstituteOptions()"
+                       style="margin-right: 10px;">
+                <strong>🔄 Zezwalaj na zamienniki w tym koszyku</strong>
+            </label>
+            <div style="font-size: 0.9em; color: #666; margin-top: 5px; margin-left: 25px;">
+                Gdy włączone, system może zastępować niedostępne lub drogie produkty tańszymi zamiennikmi.
+            </div>
+        </div>
+
+        <div id="substitute-options" style="margin: 20px 0; {% if not basket.optimization_settings.get('substitute_settings', {}).get('allow_substitutes', True) %}display: none;{% endif %}">
+            <div class="form-group" style="margin: 15px 0;">
+                <label><strong>💸 Maksymalny wzrost ceny dla zamienników (%):</strong></label><br>
+                <input type="range" name="max_price_increase_percent" 
+                       value="{{ basket.optimization_settings.get('substitute_settings', {}).get('max_price_increase_percent', 20) }}" 
+                       min="0" max="50" step="5"
+                       oninput="updatePriceIncreaseDisplay(this.value)"
+                       style="width: 300px;">
+                <span id="price-increase-display" style="margin-left: 10px; font-weight: bold;">{{ basket.optimization_settings.get('substitute_settings', {}).get('max_price_increase_percent', 20) }}%</span>
+                <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                    Zamienniki mogą być maksymalnie o tyle droższe od oryginału. 0% = tylko tańsze zamienniki.
+                </div>
+            </div>
+
+            <div class="form-group" style="margin: 15px 0;">
+                <label style="display: flex; align-items: center;">
+                    <input type="checkbox" name="prefer_original" 
+                           {% if basket.optimization_settings.get('substitute_settings', {}).get('prefer_original', True) %}checked{% endif %}
+                           style="margin-right: 10px;">
+                    <strong>⭐ Preferuj oryginalne produkty</strong>
+                </label>
+                <div style="font-size: 0.9em; color: #666; margin-top: 5px; margin-left: 25px;">
+                    System wybierze zamiennik tylko jeśli jest znacznie tańszy lub oryginał jest niedostępny.
+                </div>
+            </div>
+
+            <div class="form-group" style="margin: 15px 0;">
+                <label><strong>🔢 Maksymalna liczba zamienników na produkt:</strong></label><br>
+                <select name="max_substitutes_per_product" style="width: 150px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    {% set max_subs = basket.optimization_settings.get('substitute_settings', {}).get('max_substitutes_per_product', 3) %}
+                    <option value="1" {% if max_subs == 1 %}selected{% endif %}>1</option>
+                    <option value="2" {% if max_subs == 2 %}selected{% endif %}>2</option>
+                    <option value="3" {% if max_subs == 3 %}selected{% endif %}>3</option>
+                    <option value="5" {% if max_subs == 5 %}selected{% endif %}>5</option>
+                    <option value="10" {% if max_subs == 10 %}selected{% endif %}>Bez limitu</option>
+                </select>
+                <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                    Ile zamienników system może rozważyć dla każdego produktu podczas optymalizacji.
+                </div>
+            </div>
+
+            <div class="form-group" style="margin: 15px 0;">
+                <label style="display: flex; align-items: center;">
+                    <input type="checkbox" name="show_substitute_reasons" 
+                           {% if basket.optimization_settings.get('substitute_settings', {}).get('show_substitute_reasons', True) %}checked{% endif %}
+                           style="margin-right: 10px;">
+                    <strong>📝 Pokazuj powody zastąpień</strong>
+                </label>
+                <div style="font-size: 0.9em; color: #666; margin-top: 5px; margin-left: 25px;">
+                    W wynikach optymalizacji będą pokazane powody zastąpienia produktów zamiennikmi.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group" style="margin: 15px 0;">
+        <label style="display: flex; align-items: center;">
+            <input type="checkbox" name="suggest_quantities" 
+                   {% if basket.optimization_settings.suggest_quantities %}checked{% endif %}
+                   style="margin-right: 10px;">
+            <strong>📈 Sugeruj optymalne ilości</strong>
+        </label>
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px; margin-left: 25px;">
+            System będzie sugerować zakup większych ilości jeśli pozwoli to na darmową dostawę lub rabaty.
+        </div>
+    </div>
+
+    <div class="form-group" style="margin: 15px 0;">
+        <label><strong>💵 Próg oszczędności (PLN):</strong></label><br>
+        <input type="number" name="min_savings_threshold" 
+               value="{{ basket.optimization_settings.min_savings_threshold }}" 
+               min="0" max="100" step="0.5"
+               style="width: 150px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+            Minimalne oszczędności wymagane do zasugerowania zmiany ilości.
+        </div>
+    </div>
+
+    <div class="form-group" style="margin: 15px 0;">
+        <label style="display: flex; align-items: center;">
+            <input type="checkbox" name="consider_free_shipping" 
+                   {% if basket.optimization_settings.consider_free_shipping %}checked{% endif %}
+                   style="margin-right: 10px;">
+            <strong>🚚 Uwzględniaj darmową dostawę</strong>
+        </label>
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px; margin-left: 25px;">
+            System uwzględni warunki darmowej dostawy w sklepach przy optymalizacji.
+        </div>
+    </div>
+
+    <div class="form-group" style="margin: 15px 0;">
+        <label><strong>🔢 Maksymalny mnożnik ilości:</strong></label><br>
+        <input type="number" name="max_quantity_multiplier" 
+               value="{{ basket.optimization_settings.max_quantity_multiplier }}" 
+               min="1" max="10" step="1"
+               style="width: 150px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+            Maksymalna wielokrotność żądanej ilości (np. 3 = maksymalnie 3x więcej niż żądano).
+        </div>
+    </div>
+
+    <div class="form-group" style="margin: 15px 0;">
+        <label style="display: flex; align-items: center;">
+            <input type="checkbox" name="show_logs" 
+                   {% if basket.optimization_settings.show_logs %}checked{% endif %}
+                   style="margin-right: 10px;">
+            <strong>📊 Pokazuj szczegółowe logi optymalizacji</strong>
+        </label>
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px; margin-left: 25px;">
+            Po optymalizacji zostanie wyświetlony szczegółowy log ze wszystkimi sprawdzonymi kombinacjami.
+        </div>
+    </div>
+
+    <div style="background: #e9ecef; padding: 15px; margin: 20px 0; border-radius: 5px;">
+        <h4>🧪 Podgląd ustawień:</h4>
+        <div id="settings-preview">
+            <div><strong>Priorytet:</strong> <span id="preview-priority">{{ basket.optimization_settings.priority }}</span></div>
+            <div><strong>Max sklepów:</strong> <span id="preview-shops">{{ basket.optimization_settings.max_shops }}</span></div>
+            <div><strong>Sugestie ilości:</strong> <span id="preview-suggestions">{% if basket.optimization_settings.suggest_quantities %}Tak{% else %}Nie{% endif %}</span></div>
+            <div><strong>Próg oszczędności:</strong> <span id="preview-threshold">{{ basket.optimization_settings.min_savings_threshold }}</span> PLN</div>
+            <div><strong>Logi:</strong> <span id="preview-logs">{% if basket.optimization_settings.show_logs %}Włączone{% else %}Wyłączone{% endif %}</span></div>
+            <!-- NOWE: Podgląd zamienników -->
+            <div><strong>Zamienniki:</strong> <span id="preview-substitutes">{% if basket.optimization_settings.get('substitute_settings', {}).get('allow_substitutes', True) %}Włączone{% else %}Wyłączone{% endif %}</span></div>
+            <div id="preview-substitute-details" {% if not basket.optimization_settings.get('substitute_settings', {}).get('allow_substitutes', True) %}style="display: none;"{% endif %}>
+                <small style="color: #666;">Max wzrost ceny: <span id="preview-price-increase">{{ basket.optimization_settings.get('substitute_settings', {}).get('max_price_increase_percent', 20) }}</span>%</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group" style="margin: 25px 0;">
+        <button type="submit" class="btn" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-right: 10px;">
+            💾 Zapisz ustawienia
+        </button>
+        <a href="{{ url_for('baskets.basket_detail', basket_id=basket.basket_id) }}" 
+           class="btn" style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; text-decoration: none;">
+           Anuluj
+        </a>
+    </div>
+</form>
+
+<div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 5px;">
+    <h3>💡 Porady dotyczące ustawień</h3>
+    
+    <div style="margin: 15px 0;">
+        <strong>🎯 Wybór priorytetu:</strong>
+        <ul style="margin-top: 5px;">
+            <li><strong>Najniższy koszt:</strong> Idealne dla budżetowych zakupów - znajdzie najtańszą opcję nawet jeśli oznacza to więcej zamówień</li>
+            <li><strong>Najmniej sklepów:</strong> Wygodne dla częstych zamówień - preferuje mniejszą liczbę sklepów</li>
+            <li><strong>Zbalansowany:</strong> Uniwersalne rozwiązanie - kompromis między ceną a wygodą</li>
+        </ul>
+    </div>
+    
+    <div style="margin: 15px 0;">
+        <strong>🏪 Limit sklepów:</strong>
+        <p style="margin-top: 5px; color: #666;">
+            Mniejsza liczba = wygoda (mniej przesyłek), większa liczba = potencjalnie niższe ceny.
+            Dla codziennych zakupów zalecamy 2-3 sklepy.
+        </p>
+    </div>
+
+    <div style="margin: 15px 0;">
+        <strong>🔄 Zamienniki produktów:</strong>
+        <p style="margin-top: 5px; color: #666;">
+            Użyteczne przy produktach które mają alternatywy (leki generyczne, różne pojemności, marki).
+            System automatycznie znajdzie tańsze lub lepiej dostępne zamienniki.
+        </p>
+    </div>
+    
+    <div style="margin: 15px 0;">
+        <strong>📊 Logi optymalizacji:</strong>
+        <p style="margin-top: 5px; color: #666;">
+            Włączenie logów pozwala zobaczyć dokładnie jakie kombinacje były sprawdzane i dlaczego wybrano daną opcję.
+            Przydatne do debugowania i zrozumienia decyzji algorytmu.
+        </p>
+    </div>
+</div>
+
+<script>
+function updateShopsDisplay(value) {
+    document.getElementById('shops-display').textContent = value;
+    document.getElementById('preview-shops').textContent = value;
+}
+
+function updatePriceIncreaseDisplay(value) {
+    document.getElementById('price-increase-display').textContent = value + '%';
+    document.getElementById('preview-price-increase').textContent = value;
+}
+
+function toggleSubstituteOptions() {
+    const checkbox = document.querySelector('input[name="allow_substitutes"]');
+    const options = document.getElementById('substitute-options');
+    const preview = document.getElementById('preview-substitutes');
+    const previewDetails = document.getElementById('preview-substitute-details');
+    
+    if (checkbox.checked) {
+        options.style.display = 'block';
+        preview.textContent = 'Włączone';
+        previewDetails.style.display = 'block';
+    } else {
+        options.style.display = 'none';
+        preview.textContent = 'Wyłączone';
+        previewDetails.style.display = 'none';
+    }
+}
+
+// Aktualizuj podgląd na bieżąco
+document.querySelector('select[name="priority"]').addEventListener('change', function() {
+    document.getElementById('preview-priority').textContent = this.value;
+});
+
+document.querySelector('input[name="suggest_quantities"]').addEventListener('change', function() {
+    document.getElementById('preview-suggestions').textContent = this.checked ? 'Tak' : 'Nie';
+});
+
+document.querySelector('input[name="min_savings_threshold"]').addEventListener('input', function() {
+    document.getElementById('preview-threshold').textContent = this.value;
+});
+
+document.querySelector('input[name="show_logs"]').addEventListener('change', function() {
+    document.getElementById('preview-logs').textContent = this.checked ? 'Włączone' : 'Wyłączone';
+});
+</script>
+
+{% endblock %}

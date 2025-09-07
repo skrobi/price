@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Wyniki optymalizacji{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('baskets.basket_detail', basket_id=result.basket_id) }}" style="color: #007bff; text-decoration: none;">← Powrót do koszyka</a>
+</div>
+
+<h1>🎯 Wyniki optymalizacji koszyka</h1>
+
+<div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; margin: 15px 0; border-radius: 5px; color: #155724;">
+    <h3 style="margin-top: 0;">✅ Najlepsza opcja znaleziona!</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <div>
+            <strong>Koszt całkowity:</strong> {{ "%.2f"|format(result.best_option.total_cost) }} PLN
+        </div>
+        <div>
+            <strong>Koszt produktów:</strong> {{ "%.2f"|format(result.best_option.total_products_cost) }} PLN
+        </div>
+        <div>
+            <strong>Koszt dostawy:</strong> {{ "%.2f"|format(result.best_option.total_shipping_cost) }} PLN
+        </div>
+        <div>
+            <strong>Liczba sklepów:</strong> {{ result.best_option.shops_count }}
+        </div>
+    </div>
+    
+    <!-- NOWE: Podsumowanie optymalizacji -->
+    {% if result.get('optimizations_applied', 0) > 0 or result.get('substitutes_used', 0) > 0 %}
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #c3e6cb;">
+        <h4 style="margin-top: 0;">🚀 Zastosowane optymalizacje:</h4>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            {% if result.get('optimizations_applied', 0) > 0 %}
+            <div style="background: #e8f5e8; padding: 8px 12px; border-radius: 4px;">
+                📊 <strong>Ilości:</strong> {{ result.optimizations_applied }} produktów zoptymalizowano
+            </div>
+            {% endif %}
+            {% if result.get('substitutes_used', 0) > 0 %}
+            <div style="background: #fff3cd; padding: 8px 12px; border-radius: 4px;">
+                🔄 <strong>Zamienniki:</strong> {{ result.substitutes_used }} produktów zastąpiono
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Log optymalizacji - pokazuj tylko jeśli włączone -->
+{% if result.optimization_log and result.get('show_logs', true) %}
+<div style="margin-top: 20px;">
+    <h3>📊 Szczegóły optymalizacji</h3>
+    <details>
+        <summary style="cursor: pointer; color: #007bff; font-weight: bold;">🔍 Pokaż szczegółowy log optymalizacji ({{ result.optimization_log|length }} wpisów)</summary>
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; margin-top: 10px;">
+            <div style="margin-bottom: 10px;">
+                <small style="color: #666;">
+                    💡 <strong>Jak czytać log:</strong> System sprawdza wszystkie możliwe kombinacje zakupów w ramach limitu sklepów, 
+                    uwzględnia zamienniki i optymalizacje ilości, oblicza koszty produktów i transportu dla każdej opcji, 
+                    a następnie wybiera najlepszą według Twojego priorytetu.
+                    <br>🔧 <strong>Wyłączenie logów:</strong> Możesz wyłączyć szczegółowe logi w <a href="{{ url_for('baskets.basket_settings', basket_id=result.basket_id) }}">ustawieniach koszyka</a>.
+                </small>
+            </div>
+            <pre style="background: #ffffff; padding: 15px; font-size: 0.8em; border-radius: 5px; border: 1px solid #ccc; max-height: 500px; overflow-y: auto; line-height: 1.4; font-family: 'Courier New', monospace;">{% for log_entry in result.optimization_log %}{{ log_entry }}
+{% endfor %}</pre>
+        </div>
+    </details>
+</div>
+{% endif %}
+
+<h2>📋 Szczegóły najlepszej opcji</h2>
+
+<h3>Produkty i sklepy:</h3>
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+    <thead>
+        <tr style="background: #f8f9fa;">
+            <th style="padding: 10px; border: 1px solid #dee2e6;">Nazwa produktu</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6;">ID</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6;">Sklep</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6;">Ilość</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6;">Cena jednostkowa</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6;">Koszt całkowity</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6;">Optymalizacje</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in result.best_option.items_list %}
+        <tr>
+            <td style="padding: 8px; border: 1px solid #dee2e6;"><strong>{{ item.product_name or ('Produkt ' + item.product_id|string) }}</strong></td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ item.product_id }}</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ item.shop_id }}</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">
+                {{ item.quantity }}
+                {% if item.get('quantity_optimized') %}
+                <span style="color: #28a745; font-size: 0.8em;">📊 ZOPT.</span>
+                {% endif %}
+            </td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ "%.2f"|format(item.unit_price_pln) }} PLN</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6; color: #28a745;"><strong>{{ "%.2f"|format(item.total_price_pln) }} PLN</strong></td>
+            <td style="padding: 8px; border: 1px solid #dee2e6; font-size: 0.8em;">
+                {% if item.get('is_substitute') %}
+                <div style="background: #fff3cd; padding: 2px 6px; border-radius: 3px; margin-bottom: 2px;">
+                    🔄 <strong>Zamiennik:</strong> {{ item.get('substitute_reason', 'Użyto zamiennik') }}
+                </div>
+                {% endif %}
+                {% if item.get('quantity_optimized') %}
+                <div style="background: #e8f5e8; padding: 2px 6px; border-radius: 3px;">
+                    📊 <strong>Ilość:</strong> {{ item.get('optimization_reason', 'Zoptymalizowano ilość') }}
+                </div>
+                {% endif %}
+                {% if not item.get('is_substitute') and not item.get('quantity_optimized') %}
+                <span style="color: #666;">Bez zmian</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>Podział na sklepy:</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+    {% for shop_id, shop_summary in result.best_option.shops_summary.items() %}
+    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h4 style="margin-top: 0; color: #495057;">🏪 {{ shop_id }}</h4>
+        
+        <div style="margin: 10px 0;">
+            <strong>Produkty:</strong> {{ shop_summary['items']|length }}<br>
+            <strong>Koszt produktów:</strong> {{ "%.2f"|format(shop_summary.subtotal) }} PLN<br>
+            <strong>Dostawa:</strong> 
+            {% if shop_summary.shipping_cost == 0 %}
+                <span style="color: #28a745;">🆓 Darmowa</span>
+            {% else %}
+                {{ "%.2f"|format(shop_summary.shipping_cost) }} PLN
+            {% endif %}
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 4px;">
+            <strong>Razem z dostawą:</strong> 
+            <span style="color: #28a745; font-size: 1.1em;">
+                {{ "%.2f"|format(shop_summary.subtotal + shop_summary.shipping_cost) }} PLN
+            </span>
+        </div>
+        
+        <details style="margin-top: 10px;">
+            <summary style="cursor: pointer; color: #007bff;">📦 Szczegóły produktów</summary>
+            <div style="margin-top: 10px;">
+                {% for item in shop_summary['items'] %}
+                <div style="padding: 8px 0; border-bottom: 1px solid #eee;">
+                    <div style="display: flex; justify-content: between; align-items: start;">
+                        <div style="flex: 1;">
+                            <strong>{{ item.product_name or ('Produkt ' + item.product_id|string) }}</strong>
+                            {% if item.get('is_substitute') %}
+                            <span style="background: #fff3cd; padding: 1px 4px; border-radius: 2px; font-size: 0.7em; margin-left: 5px;">🔄 Zamiennik</span>
+                            {% endif %}
+                            {% if item.get('quantity_optimized') %}
+                            <span style="background: #e8f5e8; padding: 1px 4px; border-radius: 2px; font-size: 0.7em; margin-left: 5px;">📊 Zopt.</span>
+                            {% endif %}
+                            <br>
+                            <small>ID: {{ item.product_id }}, Ilość: {{ item.quantity }}, Cena: {{ "%.2f"|format(item.unit_price_pln) }} PLN, Razem: {{ "%.2f"|format(item.total_price_pln) }} PLN</small>
+                            
+                            {% if item.get('substitute_reason') %}
+                            <br><small style="color: #856404; font-style: italic;">🔄 {{ item.substitute_reason }}</small>
+                            {% endif %}
+                            {% if item.get('optimization_reason') %}
+                            <br><small style="color: #155724; font-style: italic;">📊 {{ item.optimization_reason }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+    </div>
+    {% endfor %}
+</div>
+
+<div style="margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+    <h3>🎯 Kolejne kroki</h3>
+    <p>System znalazł optymalną kombinację zakupów{% if result.get('optimizations_applied', 0) > 0 or result.get('substitutes_used', 0) > 0 %} i zastosował {{ result.get('optimizations_applied', 0) + result.get('substitutes_used', 0) }} optymalizacji{% endif %}. Możesz teraz przejść do realizacji zamówień.</p>
+    <div style="margin-top: 15px;">
+        <a href="{{ url_for('baskets.basket_detail', basket_id=result.basket_id) }}" 
+           class="btn" style="background: #17a2b8; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; margin-right: 10px;">
+            👁️ Powrót do koszyka
+        </a>
+        <a href="{{ url_for('baskets.basket') }}" 
+           class="btn" style="background: #28a745; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; margin-right: 10px;">
+            🛒 Wszystkie koszyki
+        </a>
+        <button onclick="window.print()" class="btn" style="background: #6c757d; color: white; border: none; padding: 8px 12px; border-radius: 4px;">
+            🖨️ Drukuj wyniki
+        </button>
+    </div>
+</div>
+
+<div style="margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px; font-size: 0.9em; color: #666;">
+    <strong>ℹ️ Informacje techniczne:</strong><br>
+    Optymalizacja wykonana: {{ result.optimized_at[:19] }}<br>
+    Algorytm: Zaawansowana optymalizacja z uwzględnieniem ilości, zamienników i kosztów dostawy<br>
+    {% if result.optimization_log %}
+    Szczegóły procesu: {{ result.optimization_log|length }} kroków optymalizacji<br>
+    {% endif %}
+    {% if result.get('optimizations_applied', 0) > 0 %}
+    Optymalizacje ilości: {{ result.optimizations_applied }} produktów<br>
+    {% endif %}
+    {% if result.get('substitutes_used', 0) > 0 %}
+    Użyte zamienniki: {{ result.substitutes_used }} produktów
+    {% endif %}
+</div>
+
+{% endblock %}

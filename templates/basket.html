@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Koszyki{% endblock %}
+{% block content %}
+<h1>Zarządzanie Koszykami</h1>
+
+<div style="margin: 20px 0;">
+    <button onclick="showNewBasketForm()" class="btn" style="background: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 4px;">
+        ➕ Nowy koszyk
+    </button>
+</div>
+
+<!-- Formularz nowego koszyka -->
+<div id="new-basket-form" style="display: none; background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 5px; border: 1px solid #dee2e6;">
+    <h3 style="margin-top: 0;">➕ Utwórz nowy koszyk</h3>
+    <form method="POST" action="{{ url_for('baskets.create_basket') }}">
+        <div class="form-group" style="margin: 15px 0;">
+            <label><strong>Nazwa koszyka:</strong></label><br>
+            <input type="text" name="name" value="Koszyk {{ baskets|length + 1 }}" style="width: 300px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+        </div>
+        
+        <div class="form-group" style="margin: 15px 0;">
+            <label><strong>Priorytet optymalizacji:</strong></label><br>
+            <select name="priority" style="width: 250px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="lowest_total_cost">💰 Najniższy koszt całkowity</option>
+                <option value="fewest_shops">🏪 Najmniej sklepów</option>
+                <option value="balanced">⚖️ Zbalansowany</option>
+            </select>
+        </div>
+        
+        <div class="form-group" style="margin: 15px 0;">
+            <label><strong>Maksymalna liczba sklepów:</strong></label><br>
+            <input type="number" name="max_shops" value="5" min="1" max="20" style="width: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        
+        <div class="form-group" style="margin: 15px 0;">
+            <label style="display: flex; align-items: center;">
+                <input type="checkbox" name="suggest_quantities" checked style="margin-right: 8px;"> 
+                Sugeruj optymalne ilości
+            </label>
+        </div>
+        
+        <div class="form-group" style="margin: 15px 0;">
+            <label style="display: flex; align-items: center;">
+                <input type="checkbox" name="consider_free_shipping" checked style="margin-right: 8px;"> 
+                Uwzględniaj darmową dostawę
+            </label>
+        </div>
+        
+        <div class="form-group" style="margin: 15px 0;">
+            <label style="display: flex; align-items: center;">
+                <input type="checkbox" name="show_logs" style="margin-right: 8px;"> 
+                Pokazuj szczegółowe logi optymalizacji
+            </label>
+        </div>
+        
+        <div class="form-group" style="margin: 15px 0;">
+            <button type="submit" class="btn" style="background: #28a745; color: white; padding: 8px 15px; border: none; border-radius: 4px; margin-right: 10px;">
+                🛒 Utwórz koszyk
+            </button>
+            <button type="button" onclick="hideNewBasketForm()" class="btn" style="background: #6c757d; color: white; padding: 8px 15px; border: none; border-radius: 4px;">
+                Anuluj
+            </button>
+        </div>
+    </form>
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 10px; margin: 10px 0; color: #155724; border-radius: 5px;">
+            {% for message in messages %}
+                <div>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<h2>Twoje koszyki ({{ baskets|length }})</h2>
+
+{% if baskets %}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; margin: 20px 0;">
+    {% for basket_id, basket in baskets.items() %}
+    <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3 style="margin-top: 0; color: #495057;">🛒 {{ basket.name }}</h3>
+        
+        <div style="margin: 15px 0; font-size: 0.9em; color: #666; line-height: 1.4;">
+            📅 <strong>Utworzony:</strong> {{ basket.created[:10] }}<br>
+            📝 <strong>Zaktualizowany:</strong> {{ basket.updated[:16] }}<br>
+            🎯 <strong>Priorytet:</strong> 
+            {% if basket.optimization_settings.priority == 'lowest_total_cost' %}💰 Najniższy koszt
+            {% elif basket.optimization_settings.priority == 'fewest_shops' %}🏪 Najmniej sklepów
+            {% elif basket.optimization_settings.priority == 'balanced' %}⚖️ Zbalansowany
+            {% else %}{{ basket.optimization_settings.priority }}{% endif %}<br>
+            🏪 <strong>Max sklepów:</strong> {{ basket.optimization_settings.max_shops }}<br>
+            📊 <strong>Logi:</strong> {% if basket.optimization_settings.get('show_logs') %}✅ Włączone{% else %}❌ Wyłączone{% endif %}
+        </div>
+        
+        <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+            <strong>Produkty: {{ basket.basket_items|length }}</strong><br>
+            {% if basket.basket_items %}
+                {% set total_items = basket.basket_items.values() | map(attribute='requested_quantity') | sum %}
+                <small style="color: #666;">Łącznie sztuk: {{ total_items }}</small>
+            {% else %}
+                <small style="color: #999;">Koszyk pusty</small>
+            {% endif %}
+        </div>
+        
+        {% if basket.last_optimization %}
+        <div style="background: #e8f5e8; padding: 8px; margin: 10px 0; border-radius: 4px; font-size: 0.85em;">
+            ✅ Ostatnia optymalizacja: {{ basket.last_optimization[:16] }}
+        </div>
+        {% endif %}
+        
+        <div style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px;">
+            <a href="{{ url_for('baskets.basket_detail', basket_id=basket_id) }}" 
+               class="btn" style="background: #17a2b8; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-size: 0.9em;">
+                👁️ Szczegóły
+            </a>
+            
+            {% if basket.basket_items %}
+            <form method="POST" action="{{ url_for('baskets.optimize_basket', basket_id=basket_id) }}" style="display: inline;">
+                <button type="submit" class="btn" style="background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-size: 0.9em;">
+                    🎯 Optymalizuj
+                </button>
+            </form>
+            {% endif %}
+            
+            <a href="{{ url_for('baskets.basket_settings', basket_id=basket_id) }}" 
+               class="btn" style="background: #ffc107; color: #000; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-size: 0.9em;">
+                ⚙️ Ustawienia
+            </a>
+            
+            <form method="POST" action="{{ url_for('baskets.delete_basket', basket_id=basket_id) }}" 
+                  style="display: inline;" onsubmit="return confirm('Czy na pewno chcesz usunąć koszyk &quot;{{ basket.name }}&quot;? Tej operacji nie można cofnąć.')">
+                <button type="submit" class="btn" style="background: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-size: 0.9em;">
+                    🗑️ Usuń
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="text-align: center; padding: 40px; color: #666; background: #f8f9fa; border-radius: 8px; margin: 20px 0;">
+    <h3>🛒 Brak koszyków</h3>
+    <p>Utwórz pierwszy koszyk aby rozpocząć optymalizację zakupów!</p>
+    <button onclick="showNewBasketForm()" class="btn" style="background: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 4px;">
+        ➕ Utwórz pierwszy koszyk
+    </button>
+</div>
+{% endif %}
+
+<div style="margin-top: 40px; padding: 20px; background: #e9ecef; border-radius: 8px;">
+    <h3 style="margin-top: 0;">💡 Jak działają koszyki?</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div>
+            <h4>🎯 1. Utwórz koszyk</h4>
+            <p style="font-size: 0.9em; color: #666;">Wybierz priorytet optymalizacji i ustaw limity sklepów według swoich preferencji.</p>
+        </div>
+        <div>
+            <h4>📦 2. Dodaj produkty</h4>
+            <p style="font-size: 0.9em; color: #666;">Dodaj produkty do koszyka ze strony produktów lub bezpośrednio w koszyku.</p>
+        </div>
+        <div>
+            <h4>🧮 3. Optymalizuj</h4>
+            <p style="font-size: 0.9em; color: #666;">System znajdzie najlepszą kombinację sklepów według Twoich kryteriów.</p>
+        </div>
+        <div>
+            <h4>🛍️ 4. Realizuj zakupy</h4>
+            <p style="font-size: 0.9em; color: #666;">Otrzymaj szczegółowy plan zakupów z podziałem na sklepy i koszty.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function showNewBasketForm() {
+    document.getElementById('new-basket-form').style.display = 'block';
+    document.querySelector('input[name="name"]').focus();
+}
+
+function hideNewBasketForm() {
+    document.getElementById('new-basket-form').style.display = 'none';
+}
+</script>
+
+{% endblock %}

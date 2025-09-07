@@ -1,0 +1,779 @@
+{% extends "base.html" %}
+{% block title %}{{ basket.name }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('baskets.basket') }}" style="color: #007bff; text-decoration: none;">← Powrót do koszyków</a>
+</div>
+
+<h1>🛒 {{ basket.name }}</h1>
+
+<div style="background: #f8f9fa; padding: 15px; margin: 15px 0; border-radius: 5px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <div>
+            <strong>Utworzony:</strong> {{ basket.created[:10] }}<br>
+            <strong>Produkty:</strong> {{ basket.basket_items|length }}
+            {% if basket.basket_items %}
+                {% set total_items = 0 %}
+                {% for product_key in basket.basket_items %}
+                    {% set item = basket.basket_items[product_key] %}
+                    {% set total_items = total_items + item.requested_quantity %}
+                {% endfor %}
+                <br><small style="color: #666;">Łącznie sztuk: {{ total_items }}</small>
+            {% endif %}
+        </div>
+        <div>
+            <strong>Priorytet:</strong> 
+            {% if basket.optimization_settings.priority == 'lowest_total_cost' %}💰 Najniższy koszt
+            {% elif basket.optimization_settings.priority == 'fewest_shops' %}🏪 Najmniej sklepów
+            {% elif basket.optimization_settings.priority == 'balanced' %}⚖️ Zbalansowany
+            {% else %}{{ basket.optimization_settings.priority }}{% endif %}<br>
+            <strong>Max sklepów:</strong> {{ basket.optimization_settings.max_shops }}
+        </div>
+        <div>
+            <strong>Sugestie ilości:</strong> 
+            {% if basket.optimization_settings.suggest_quantities %}✅ Tak{% else %}❌ Nie{% endif %}<br>
+            <strong>Logi:</strong> 
+            {% if basket.optimization_settings.get('show_logs') %}✅ Włączone{% else %}❌ Wyłączone{% endif %}
+        </div>
+        <div>
+            <strong>Zamienniki:</strong> 
+            {% if basket.optimization_settings.get('substitute_settings', {}).get('allow_substitutes', True) %}
+                ✅ Włączone (max +{{ basket.optimization_settings.get('substitute_settings', {}).get('max_price_increase_percent', 20) }}%)
+            {% else %}
+                ❌ Wyłączone
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if basket.last_optimization %}
+    <div style="background: #e8f5e8; padding: 8px; margin: 10px 0; border-radius: 4px; font-size: 0.9em;">
+        ✅ Ostatnia optymalizacja: {{ basket.last_optimization[:16] }}
+    </div>
+    {% endif %}
+</div>
+
+<div style="margin: 20px 0;">
+    {% if basket.basket_items %}
+    <form method="POST" action="{{ url_for('baskets.optimize_basket', basket_id=basket.basket_id) }}" style="display: inline;">
+        <button type="submit" class="btn" style="background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; margin-right: 10px;">
+            🎯 Optymalizuj koszyk
+        </button>
+    </form>
+    {% endif %}
+    
+    <a href="{{ url_for('baskets.basket_settings', basket_id=basket.basket_id) }}" 
+       class="btn" style="background: #ffc107; color: #000; text-decoration: none; padding: 10px 15px; border-radius: 4px; margin-right: 10px;">
+        ⚙️ Ustawienia
+    </a>
+    
+    <button onclick="showAddProductModal()" class="btn" style="background: #17a2b8; color: white; border: none; padding: 10px 15px; border-radius: 4px; margin-right: 10px;">
+        ➕ Dodaj produkt
+    </button>
+    
+    <form method="POST" action="{{ url_for('baskets.delete_basket', basket_id=basket.basket_id) }}" 
+          style="display: inline;" onsubmit="return confirm('Czy na pewno chcesz usunąć ten koszyk?')">
+        <button type="submit" class="btn" style="background: #dc3545; color: white; border: none; padding: 10px 15px; border-radius: 4px;">
+            🗑️ Usuń koszyk
+        </button>
+    </form>
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 10px; margin: 10px 0; color: #155724; border-radius: 5px;">
+            {% for message in messages %}
+                <div>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<h2>Produkty w koszyku ({{ basket.basket_items|length }})</h2>
+
+{% if basket.basket_items %}
+<table style="width: 100%; border-collapse: collapse;">
+    <thead>
+        <tr style="background: #f8f9fa;">
+            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left; width: 30%;">Produkt</th>
+            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center; width: 12%;">Ilość</th>
+            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center; width: 15%;">Zamienniki</th>
+            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: right; width: 15%;">Najlepsza cena</th>
+            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: right; width: 15%;">Koszt całkowity</th>
+            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: center; width: 13%;">Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for product_key in basket.basket_items %}
+            {% set item = basket.basket_items[product_key] %}
+            <tr>
+                <td style="padding: 12px; border: 1px solid #dee2e6;">
+                    <strong>{{ item.product_name or 'Produkt ' + product_key }}</strong><br>
+                    <small style="color: #666;">ID: {{ item.product_id }}</small>
+                    
+                    {% if item.get('optimization_result', {}).get('is_substitute', False) %}
+                    <br><div style="background: #fff3cd; border: 1px solid #ffc107; padding: 4px 8px; border-radius: 3px; margin-top: 5px; font-size: 0.8em;">
+                        🔄 <strong>Zastąpiono:</strong> {{ item.optimization_result.substitute_reason }}
+                    </div>
+                    {% endif %}
+                </td>
+                
+                <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
+                        <button onclick="changeQuantity({{ item.product_id }}, 'decrease')" 
+                                class="btn" style="background: #ffc107; color: #000; padding: 2px 6px; font-size: 0.8em; border: none; border-radius: 3px;">
+                            ➖
+                        </button>
+                        <span id="quantity-{{ item.product_id }}" style="font-weight: bold; min-width: 30px; text-align: center;">
+                            {{ item.requested_quantity }}
+                        </span>
+                        <button onclick="changeQuantity({{ item.product_id }}, 'increase')" 
+                                class="btn" style="background: #28a745; color: white; padding: 2px 6px; font-size: 0.8em; border: none; border-radius: 3px;">
+                            ➕
+                        </button>
+                    </div>
+                </td>
+                
+                <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                    {% set allow_subs = item.get('substitute_settings', {}).get('allow_substitutes', True) %}
+                    {% set max_increase = item.get('substitute_settings', {}).get('max_price_increase_percent', 20) %}
+                    
+                    <div style="font-size: 0.8em;">
+                        {% if allow_subs %}
+                            <span style="color: #28a745;">✅ TAK</span><br>
+                            <small>max +{{ max_increase }}%</small>
+                        {% else %}
+                            <span style="color: #dc3545;">❌ NIE</span>
+                        {% endif %}
+                    </div>
+                    
+                    <button onclick="showSubstituteSettings({{ item.product_id }})" 
+                            class="btn" style="background: #6f42c1; color: white; padding: 2px 6px; font-size: 0.7em; border: none; border-radius: 3px; margin-top: 3px;">
+                        ⚙️
+                    </button>
+                </td>
+                
+                <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">
+                    {% if best_prices_data.get(item.product_id) %}
+                        {% set best_price_info = best_prices_data[item.product_id] %}
+                        <strong style="color: #28a745;">{{ "%.2f"|format(best_price_info.price_pln) }} PLN</strong><br>
+                        <small style="color: #666;">{{ best_price_info.shop_id }}</small>
+                        {% if best_price_info.currency != 'PLN' %}
+                        <br><small style="color: #999;">{{ "%.2f"|format(best_price_info.price_original) }} {{ best_price_info.currency }}</small>
+                        {% endif %}
+                    {% else %}
+                        <span style="color: #dc3545;">Brak cen</span>
+                    {% endif %}
+                </td>
+                
+                <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">
+                    {% if best_prices_data.get(item.product_id) %}
+                        {% set best_price_info = best_prices_data[item.product_id] %}
+                        <strong style="color: #007bff;">{{ "%.2f"|format(best_price_info.price_pln * item.requested_quantity) }} PLN</strong>
+                    {% else %}
+                        <span style="color: #dc3545;">-</span>
+                    {% endif %}
+                </td>
+                
+                <td style="padding: 12px; border: 1px solid #dee2e6; text-align: center;">
+                    <form method="POST" action="{{ url_for('baskets.remove_from_basket', basket_id=basket.basket_id, product_id=item.product_id) }}" 
+                          style="display: inline;" onsubmit="return confirm('Usunąć {{ item.product_name }} z koszyka?')">
+                        <button type="submit" class="btn" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; font-size: 0.8em;">
+                            🗑️ Usuń
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if basket.basket_items %}
+<div style="margin: 20px 0; padding: 15px; background: #e9ecef; border-radius: 5px;">
+    <h3 style="margin-top: 0;">💰 Szacunkowy koszt (najlepsze ceny):</h3>
+    
+    <div style="font-size: 1.2em;">
+        <strong>Produkty: <span class="total-cost-display">{{ "%.2f"|format(total_estimated_cost or 0) }}</span> PLN</strong>
+        <br><small style="color: #666;">+ koszty dostawy (zależnie od sklepów)</small>
+    </div>
+    
+    <div style="margin-top: 10px; font-size: 0.9em; color: #666;">
+        💡 To tylko szacunek na podstawie najlepszych cen. Rzeczywisty koszt może się różnić po optymalizacji ze względu na koszty dostawy, ograniczenia liczby sklepów i użyte zamienniki.
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<div style="text-align: center; padding: 40px; color: #666; background: #f8f9fa; border-radius: 8px;">
+    <h3>📦 Koszyk jest pusty</h3>
+    <p>Dodaj produkty do koszyka aby móc go zoptymalizować</p>
+    <button onclick="showAddProductModal()" class="btn">➕ Dodaj pierwszy produkt</button>
+</div>
+{% endif %}
+
+<!-- Modal dodawania produktu z wyszukiwarką -->
+<div id="addProductModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+        <h3 style="margin-top: 0;">➕ Dodaj produkt do koszyka</h3>
+        
+        <!-- NOWA WYSZUKIWARKA -->
+        <div style="margin: 20px 0;">
+            <label><strong>Wyszukaj produkt:</strong></label>
+            <input type="text" id="productSearch" placeholder="Wpisz nazwę produktu..." 
+                   style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px; font-size: 16px;"
+                   oninput="filterProducts()" onkeydown="handleSearchKeyDown(event)">
+            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                💡 Wpisz kilka liter nazwy produktu aby zawęzić wyniki
+            </div>
+        </div>
+        
+        <!-- WYNIKI WYSZUKIWANIA -->
+        <div id="searchResults" style="margin: 20px 0; max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; display: none;">
+            <!-- Dynamicznie generowane wyniki -->
+        </div>
+        
+        <!-- ALTERNATYWNIE: DROPDOWN (ukryty domyślnie) -->
+        <div id="dropdownSection" style="margin: 20px 0; display: none;">
+            <label><strong>Lub wybierz z listy:</strong></label>
+            <select id="productSelect" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+                <option value="">-- Wybierz produkt --</option>
+            </select>
+        </div>
+        
+        <!-- WYBRANY PRODUKT -->
+        <div id="selectedProductInfo" style="margin: 20px 0; padding: 15px; background: #e8f5e8; border-radius: 4px; display: none;">
+            <h4 style="margin-top: 0; color: #28a745;">✅ Wybrany produkt:</h4>
+            <div id="selectedProductDetails"></div>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <label><strong>Ilość:</strong></label>
+            <input type="number" id="productQuantity" value="1" min="1" style="width: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+        </div>
+        
+        <div style="margin: 20px 0; text-align: right; border-top: 1px solid #ddd; padding-top: 15px;">
+            <button onclick="hideAddProductModal()" class="btn" style="background: #6c757d; color: white; margin-right: 10px; padding: 10px 15px; border: none; border-radius: 4px;">
+                Anuluj
+            </button>
+            <button onclick="showDropdownFallback()" class="btn" style="background: #ffc107; color: #000; margin-right: 10px; padding: 10px 15px; border: none; border-radius: 4px;">
+                📋 Pokaż pełną listę
+            </button>
+            <button onclick="addProductToBasket()" class="btn" style="background: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 4px;" disabled>
+                ➕ Dodaj do koszyka
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal ustawień zamienników -->
+<div id="substituteSettingsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%;">
+        <h3 style="margin-top: 0;">🔄 Ustawienia zamienników</h3>
+        
+        <div id="substitute-product-info" style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+            <!-- Informacje o produkcie -->
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <label style="display: flex; align-items: center;">
+                <input type="checkbox" id="allowSubstitutes" style="margin-right: 10px;">
+                <strong>Zezwalaj na zamienniki dla tego produktu</strong>
+            </label>
+            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                Gdy włączone, system może zastąpić ten produkt tańszym lub lepiej dostępnym zamiennikiem.
+            </div>
+        </div>
+        
+        <div id="substituteOptions" style="margin: 20px 0; display: none;">
+            <div style="margin: 15px 0;">
+                <label><strong>Maksymalny wzrost ceny (%):</strong></label><br>
+                <input type="range" id="maxPriceIncrease" min="0" max="50" step="5" value="20" 
+                       oninput="updatePriceDisplay(this.value)" style="width: 100%; margin-top: 5px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8em; color: #666;">
+                    <span>0% (tylko tańsze)</span>
+                    <span id="priceDisplay">20%</span>
+                    <span>50% (znacznie droższe)</span>
+                </div>
+                <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                    Zamienniki mogą być maksymalnie o tyle droższe od oryginału.
+                </div>
+            </div>
+            
+            <div id="availableSubstitutes" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+                <h5 style="margin-top: 0;">Dostępne zamienniki:</h5>
+                <div id="substitutesList">Ładowanie...</div>
+            </div>
+        </div>
+        
+        <div style="margin: 20px 0; text-align: right; border-top: 1px solid #ddd; padding-top: 15px;">
+            <button onclick="hideSubstituteSettingsModal()" class="btn" style="background: #6c757d; color: white; margin-right: 10px;">
+                Anuluj
+            </button>
+            <button onclick="saveSubstituteSettings()" class="btn" style="background: #28a745; color: white;">
+                💾 Zapisz ustawienia
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let allProducts = [];
+let filteredProducts = [];
+let selectedProductId = null;
+let currentProductForSubstitutes = null;
+
+function showAddProductModal() {
+    fetch('/api/products')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                allProducts = data.products;
+                
+                // Pobierz ID produktów już w koszyku
+                const productsInBasket = new Set();
+                {% if basket.basket_items %}
+                    {% for product_key in basket.basket_items %}
+                        {% set item = basket.basket_items[product_key] %}
+                        productsInBasket.add({{ item.product_id }});
+                    {% endfor %}
+                {% endif %}
+                
+                // Filtruj produkty - pokaż tylko te które NIE są w koszyku
+                filteredProducts = data.products.filter(product => !productsInBasket.has(product.id));
+                
+                // Resetuj interfejs
+                document.getElementById('productSearch').value = '';
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('dropdownSection').style.display = 'none';
+                document.getElementById('selectedProductInfo').style.display = 'none';
+                selectedProductId = null;
+                updateAddButton();
+                
+                // Sprawdź czy są dostępne produkty
+                if (filteredProducts.length === 0) {
+                    document.getElementById('productSearch').placeholder = 'Wszystkie produkty są już w koszyku';
+                    document.getElementById('productSearch').disabled = true;
+                } else {
+                    document.getElementById('productSearch').placeholder = 'Wpisz nazwę produktu...';
+                    document.getElementById('productSearch').disabled = false;
+                    
+                    // Focus na wyszukiwarkę
+                    setTimeout(() => {
+                        document.getElementById('productSearch').focus();
+                    }, 100);
+                }
+                
+                document.getElementById('addProductModal').style.display = 'block';
+            } else {
+                alert('Błąd przy ładowaniu produktów: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Błąd: ' + error.message);
+        });
+}
+
+function hideAddProductModal() {
+    document.getElementById('addProductModal').style.display = 'none';
+    selectedProductId = null;
+}
+
+function filterProducts() {
+    const searchTerm = document.getElementById('productSearch').value.toLowerCase().trim();
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.style.display = 'none';
+        return;
+    }
+    
+    // Filtruj produkty według wyszukiwanego terminu
+    const matchingProducts = filteredProducts.filter(product => 
+        product.name.toLowerCase().includes(searchTerm)
+    ).slice(0, 10); // Maksymalnie 10 wyników
+    
+    if (matchingProducts.length === 0) {
+        resultsContainer.innerHTML = `
+            <div style="padding: 15px; text-align: center; color: #666;">
+                Nie znaleziono produktów zawierających: "${searchTerm}"
+            </div>
+        `;
+        resultsContainer.style.display = 'block';
+        return;
+    }
+    
+    // Generuj HTML wyników
+    let resultsHTML = '';
+    matchingProducts.forEach((product, index) => {
+        const isSelected = selectedProductId === product.id;
+        resultsHTML += `
+            <div onclick="selectProduct(${product.id})" 
+                 data-product-id="${product.id}"
+                 style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; 
+                        background: ${isSelected ? '#e8f5e8' : 'white'}; 
+                        transition: background-color 0.2s;"
+                 onmouseover="this.style.background='#f8f9fa'" 
+                 onmouseout="this.style.background='${isSelected ? '#e8f5e8' : 'white'}'">
+                <strong>${highlightSearchTerm(product.name, searchTerm)}</strong>
+                <br><small style="color: #666;">ID: ${product.id}</small>
+                ${isSelected ? '<span style="float: right; color: #28a745;">✅ Wybrano</span>' : ''}
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = resultsHTML;
+    resultsContainer.style.display = 'block';
+}
+
+function highlightSearchTerm(text, searchTerm) {
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    return text.replace(regex, '<mark style="background: #ffeb3b; padding: 1px 2px;">$1</mark>');
+}
+
+function selectProduct(productId) {
+    selectedProductId = productId;
+    const product = allProducts.find(p => p.id === productId);
+    
+    if (product) {
+        // Aktualizuj interfejs
+        document.getElementById('selectedProductInfo').style.display = 'block';
+        document.getElementById('selectedProductDetails').innerHTML = `
+            <strong>${product.name}</strong><br>
+            <small style="color: #666;">ID: ${product.id}</small>
+        `;
+        
+        // Ukryj wyniki wyszukiwania
+        document.getElementById('searchResults').style.display = 'none';
+        
+        // Ustaw wartość w polu wyszukiwania
+        document.getElementById('productSearch').value = product.name;
+        
+        // Aktualizuj przycisk
+        updateAddButton();
+        
+        // Przefiltruj wyniki aby pokazać wybór
+        filterProducts();
+    }
+}
+
+function updateAddButton() {
+    const addButton = document.querySelector('#addProductModal button[onclick="addProductToBasket()"]');
+    if (selectedProductId) {
+        addButton.disabled = false;
+        addButton.style.opacity = '1';
+    } else {
+        addButton.disabled = true;
+        addButton.style.opacity = '0.5';
+    }
+}
+
+function showDropdownFallback() {
+    // Pokaż tradycyjny dropdown jako alternatywę
+    const dropdownSection = document.getElementById('dropdownSection');
+    const select = document.getElementById('productSelect');
+    
+    select.innerHTML = '<option value="">-- Wybierz produkt --</option>';
+    filteredProducts.forEach(product => {
+        const option = document.createElement('option');
+        option.value = product.id;
+        option.textContent = product.name;
+        select.appendChild(option);
+    });
+    
+    dropdownSection.style.display = 'block';
+    
+    // Event listener dla dropdown
+    select.addEventListener('change', function() {
+        if (this.value) {
+            selectProduct(parseInt(this.value));
+        }
+    });
+}
+
+function handleSearchKeyDown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        
+        // Jeśli jest tylko jeden wynik, wybierz go automatycznie
+        const visibleResults = document.querySelectorAll('#searchResults [data-product-id]');
+        if (visibleResults.length === 1) {
+            const productId = parseInt(visibleResults[0].getAttribute('data-product-id'));
+            selectProduct(productId);
+        }
+    } else if (event.key === 'Escape') {
+        document.getElementById('searchResults').style.display = 'none';
+    }
+}
+
+async function addProductToBasket() {
+    if (!selectedProductId) {
+        alert('Proszę wybrać produkt');
+        return;
+    }
+    
+    const quantity = document.getElementById('productQuantity').value;
+    const selectedProduct = allProducts.find(p => p.id === selectedProductId);
+    const productName = selectedProduct ? selectedProduct.name : 'Nieznany produkt';
+    
+    try {
+        const response = await fetch('/add_to_basket_ajax', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                basket_id: '{{ basket.basket_id }}',
+                product_id: selectedProductId,
+                quantity: parseInt(quantity)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            hideAddProductModal();
+            alert(`✅ Dodano ${productName} do koszyka (${quantity} szt.)`);
+            window.location.reload();
+        } else {
+            alert(`❌ Błąd: ${result.error}`);
+        }
+        
+    } catch (error) {
+        alert(`❌ Błąd: ${error.message}`);
+    }
+}
+
+async function showSubstituteSettings(productId) {
+    currentProductForSubstitutes = productId;
+    
+    const basketItems = {
+        {% for product_key, item in basket.basket_items.items() %}
+        {{ item.product_id }}: {
+            name: "{{ item.product_name|e }}",
+            quantity: {{ item.requested_quantity }},
+            allowSubstitutes: {{ item.get('substitute_settings', {}).get('allow_substitutes', True)|tojson }},
+            maxPriceIncrease: {{ item.get('substitute_settings', {}).get('max_price_increase_percent', 20) }}
+        },
+        {% endfor %}
+    };
+    
+    const productInfo = basketItems[productId];
+    if (!productInfo) {
+        alert('Nie znaleziono produktu w koszyku');
+        return;
+    }
+    
+    document.getElementById('substitute-product-info').innerHTML = `
+        <strong>Produkt:</strong> ${productInfo.name}<br>
+        <strong>Ilość w koszyku:</strong> ${productInfo.quantity} szt.
+    `;
+    
+    const allowCheckbox = document.getElementById('allowSubstitutes');
+    allowCheckbox.checked = productInfo.allowSubstitutes;
+    
+    const priceSlider = document.getElementById('maxPriceIncrease');
+    priceSlider.value = productInfo.maxPriceIncrease;
+    updatePriceDisplay(productInfo.maxPriceIncrease);
+    
+    toggleSubstituteOptions();
+    
+    if (productInfo.allowSubstitutes) {
+        loadAvailableSubstitutes(productId);
+    }
+    
+    document.getElementById('substituteSettingsModal').style.display = 'block';
+    allowCheckbox.addEventListener('change', toggleSubstituteOptions);
+}
+
+function hideSubstituteSettingsModal() {
+    document.getElementById('substituteSettingsModal').style.display = 'none';
+    currentProductForSubstitutes = null;
+}
+
+function toggleSubstituteOptions() {
+    const isChecked = document.getElementById('allowSubstitutes').checked;
+    const optionsDiv = document.getElementById('substituteOptions');
+    
+    if (isChecked) {
+        optionsDiv.style.display = 'block';
+        if (currentProductForSubstitutes) {
+            loadAvailableSubstitutes(currentProductForSubstitutes);
+        }
+    } else {
+        optionsDiv.style.display = 'none';
+    }
+}
+
+function updatePriceDisplay(value) {
+    document.getElementById('priceDisplay').textContent = value + '%';
+}
+
+async function loadAvailableSubstitutes(productId) {
+    const container = document.getElementById('substitutesList');
+    container.innerHTML = 'Ładowanie zamienników...';
+    
+    try {
+        const response = await fetch(`/api/substitutes/${productId}`);
+        const data = await response.json();
+        
+        if (data.success && data.substitutes.length > 0) {
+            let html = '<div style="display: grid; gap: 8px;">';
+            
+            data.substitutes.forEach(substitute => {
+                const priceInfo = substitute.min_price && substitute.max_price ? 
+                    `${substitute.min_price.toFixed(2)} - ${substitute.max_price.toFixed(2)} PLN` : 
+                    'Brak cen';
+                
+                html += `
+                    <div style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${substitute.name}</strong><br>
+                            <small style="color: #666;">Priorytet: ${substitute.priority} | Cena: ${priceInfo}</small>
+                        </div>
+                        <a href="/product/${substitute.id}" target="_blank" class="btn" style="background: #17a2b8; color: white; font-size: 0.7em;">
+                            👁️ Zobacz
+                        </a>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div style="color: #666; text-align: center; padding: 15px;">Ten produkt nie ma skonfigurowanych zamienników.</div>';
+        }
+        
+    } catch (error) {
+        container.innerHTML = '<div style="color: #dc3545; text-align: center; padding: 15px;">Błąd podczas ładowania zamienników.</div>';
+    }
+}
+
+async function saveSubstituteSettings() {
+    if (!currentProductForSubstitutes) return;
+    
+    const allowSubstitutes = document.getElementById('allowSubstitutes').checked;
+    const maxPriceIncrease = document.getElementById('maxPriceIncrease').value;
+    
+    try {
+        const response = await fetch(`/basket/{{ basket.basket_id }}/substitute_settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: currentProductForSubstitutes,
+                allow_substitutes: allowSubstitutes,
+                max_price_increase_percent: parseFloat(maxPriceIncrease)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Ustawienia zamienników zostały zapisane');
+            hideSubstituteSettingsModal();
+            window.location.reload();
+        } else {
+            alert(`❌ Błąd: ${result.error}`);
+        }
+        
+    } catch (error) {
+        alert(`❌ Błąd: ${error.message}`);
+    }
+}
+
+function changeQuantity(productId, action) {
+    const quantitySpan = document.getElementById('quantity-' + productId);
+    if (!quantitySpan) {
+        console.error('Nie znaleziono elementu quantity-' + productId);
+        return;
+    }
+    
+    const currentQuantity = parseInt(quantitySpan.textContent);
+    
+    if (action === 'decrease' && currentQuantity <= 1) {
+        if (confirm('Czy chcesz usunąć ten produkt z koszyka?')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{{ url_for("baskets.remove_from_basket", basket_id=basket.basket_id, product_id=0) }}'.replace('0', productId);
+            document.body.appendChild(form);
+            form.submit();
+        }
+        return;
+    }
+    
+    fetch('/basket/{{ basket.basket_id }}/update_quantity/' + productId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            action: action
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            quantitySpan.textContent = data.new_quantity;
+            
+            const row = quantitySpan.closest('tr');
+            if (row) {
+                const priceCell = row.cells[3];
+                const costCell = row.cells[4];
+                
+                const priceStrong = priceCell ? priceCell.querySelector('strong') : null;
+                if (priceStrong) {
+                    const priceText = priceStrong.textContent;
+                    const unitPrice = parseFloat(priceText.replace(' PLN', '').replace(',', '.'));
+                    
+                    if (!isNaN(unitPrice)) {
+                        const newCost = unitPrice * data.new_quantity;
+                        costCell.innerHTML = `<strong style="color: #007bff;">${newCost.toFixed(2)} PLN</strong>`;
+                        updateTotalCost();
+                    }
+                }
+            }
+            
+        } else {
+            alert('Błąd: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('JavaScript Error:', error);
+        alert('Wystąpił błąd podczas aktualizacji ilości: ' + error.message);
+    });
+}
+
+function updateTotalCost() {
+    let totalCost = 0;
+    const costCells = document.querySelectorAll('tbody tr td:nth-child(5) strong');
+    
+    costCells.forEach(cell => {
+        const costText = cell.textContent;
+        if (costText !== '-') {
+            const cost = parseFloat(costText.replace(' PLN', '').replace(',', '.'));
+            if (!isNaN(cost)) {
+                totalCost += cost;
+            }
+        }
+    });
+    
+    const totalCostElement = document.querySelector('.total-cost-display');
+    if (totalCostElement) {
+        totalCostElement.textContent = totalCost.toFixed(2);
+    }
+}
+
+// Zamknij modaly po kliknięciu w tło
+document.getElementById('addProductModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hideAddProductModal();
+    }
+});
+
+document.getElementById('substituteSettingsModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hideSubstituteSettingsModal();
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Produkty{% endblock %}
+{% block content %}
+<h1>Zarządzanie Produktami</h1>
+
+<div style="margin: 20px 0; display: flex; gap: 10px; align-items: center;">
+    <a href="{{ url_for('products.add_product_url') }}" class="btn">➕ Dodaj produkt z URL</a>
+    
+    <!-- Selektor koszyka -->
+    <select id="basket-selector" style="padding: 8px; margin-left: 20px;">
+        <option value="">Wybierz koszyk...</option>
+    </select>
+    <button onclick="createNewBasketQuick()" class="btn" style="background: #ffc107; color: #000;">
+        🛒 Nowy koszyk
+    </button>
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 10px; margin: 10px 0; color: #155724;">
+            {% for message in messages %}
+                <div>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<h2>Lista Produktów ({{ products|length }})</h2>
+
+{% if products %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nazwa</th>
+            <th>EAN</th>
+            <th>Sklepy</th>
+            <th>Cena PLN</th>
+            <th>Koszyk</th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for product in products %}
+        <tr>
+            <td>{{ product.id }}</td>
+            <td><strong>{{ product.name }}</strong></td>
+            <td>{{ product.ean or '-' }}</td>
+            <td>
+                {% set product_links = links|selectattr('product_id', 'equalto', product.id)|list %}
+                {% if product_links|length > 0 %}
+                    <span style="color: #007bff;">{{ product_links|length }} sklep(ów)</span>
+                {% else %}
+                    <em style="color: #999;">Brak linków</em>
+                {% endif %}
+            </td>
+            <td>
+                {% if product.min_price and product.max_price %}
+                    {% if product.min_price == product.max_price %}
+                        <strong style="color: #28a745;">{{ "%.2f"|format(product.min_price) }} zł</strong>
+                    {% else %}
+                        <span style="color: #28a745;">{{ "%.2f"|format(product.min_price) }} - {{ "%.2f"|format(product.max_price) }} zł</span>
+                    {% endif %}
+                {% else %}
+                    <em style="color: #999;">Brak cen</em>
+                {% endif %}
+            </td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <input type="number" id="qty-{{ product.id }}" value="1" min="1" max="20" 
+                           style="width: 50px; padding: 3px;">
+                    <button onclick="addToBasket({{ product.id }})" class="btn" 
+                            style="background: #28a745; font-size: 0.8em; padding: 4px 8px;"
+                            id="add-btn-{{ product.id }}">
+                        ➕
+                    </button>
+                </div>
+            </td>
+            <td>
+                <a href="{{ url_for('products.product_detail', product_id=product.id) }}" class="btn" style="background: #17a2b8; font-size: 0.9em;">Zobacz szczegóły</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p><em>Brak produktów. <a href="{{ url_for('product.add_product_url') }}">Dodaj pierwszy produkt</a></em></p>
+{% endif %}
+
+<!-- Toast notification -->
+<div id="toast" style="display: none; position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 15px 20px; border-radius: 5px; z-index: 1000;">
+    <div id="toast-message"></div>
+</div>
+
+<script>
+let currentBasketId = null;
+
+// Załaduj koszyki na start
+document.addEventListener('DOMContentLoaded', function() {
+    loadBaskets();
+});
+
+function loadBaskets() {
+    // W prawdziwej aplikacji tutaj byłby fetch do /api/baskets
+    const basketSelector = document.getElementById('basket-selector');
+    basketSelector.innerHTML = '<option value="">Wybierz koszyk...</option>';
+    
+    basketSelector.addEventListener('change', function() {
+        currentBasketId = this.value;
+    });
+}
+
+async function addToBasket(productId) {
+    const quantityInput = document.getElementById(`qty-${productId}`);
+    const addButton = document.getElementById(`add-btn-${productId}`);
+    const quantity = parseInt(quantityInput.value) || 1;
+    
+    if (!currentBasketId) {
+        if (confirm('Nie wybrano koszyka. Utworzyć nowy?')) {
+            currentBasketId = await createNewBasketQuick();
+        } else {
+            showToast('Wybierz koszyk lub utwórz nowy', 'warning');
+            return;
+        }
+    }
+    
+    const originalText = addButton.textContent;
+    addButton.textContent = '⏳';
+    addButton.disabled = true;
+    
+    try {
+        const response = await fetch('/add_to_basket_ajax', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                basket_id: currentBasketId,
+                product_id: productId,
+                quantity: quantity
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(`✅ ${result.message}`, 'success');
+            quantityInput.value = 1;
+            updateBasketCounter(result.total_items);
+        } else {
+            showToast(`❌ ${result.error}`, 'error');
+        }
+        
+    } catch (error) {
+        showToast(`❌ Błąd: ${error.message}`, 'error');
+    } finally {
+        addButton.textContent = originalText;
+        addButton.disabled = false;
+    }
+}
+
+async function createNewBasketQuick() {
+    const name = prompt('Nazwa nowego koszyka:', `Koszyk ${new Date().toLocaleDateString()}`);
+    if (!name) return null;
+    
+    try {
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('priority', 'lowest_total_cost');
+        formData.append('max_shops', '5');
+        formData.append('suggest_quantities', 'on');
+        formData.append('consider_free_shipping', 'on');
+        
+        const response = await fetch('/basket/new', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.redirected) {
+            const redirectUrl = response.url;
+            const basketId = redirectUrl.split('/basket/')[1];
+            currentBasketId = basketId;
+            
+            showToast(`✅ Utworzono koszyk: ${name}`, 'success');
+            return basketId;
+        } else {
+            throw new Error('Błąd podczas tworzenia koszyka');
+        }
+        
+    } catch (error) {
+        showToast(`❌ Błąd: ${error.message}`, 'error');
+        return null;
+    }
+}
+
+function updateBasketCounter(totalItems) {
+    const basketSelector = document.getElementById('basket-selector');
+    const selectedOption = basketSelector.options[basketSelector.selectedIndex];
+    
+    if (selectedOption && selectedOption.value) {
+        const baseName = selectedOption.textContent.split(' (')[0];
+        selectedOption.textContent = `${baseName} (${totalItems} szt.)`;
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    const messageEl = document.getElementById('toast-message');
+    
+    messageEl.textContent = message;
+    
+    if (type === 'success') {
+        toast.style.background = '#28a745';
+    } else if (type === 'error') {
+        toast.style.background = '#dc3545';
+    } else if (type === 'warning') {
+        toast.style.background = '#ffc107';
+        toast.style.color = '#000';
+    } else {
+        toast.style.background = '#17a2b8';
+    }
+    
+    toast.style.display = 'block';
+    
+    setTimeout(() => {
+        toast.style.display = 'none';
+        toast.style.color = 'white';
+    }, 4000);
+}
+</script>
+
+{% endblock %}

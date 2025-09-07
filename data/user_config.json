@@ -1,0 +1,17 @@
+{
+  "user_id": "USR-9B25EFB9F425-77429277",
+  "created": "2025-09-05T18:51:17.429277",
+  "app_version": "1.0",
+  "instance_name": "PriceTracker-77429277",
+  "settings": {
+    "share_anonymous_data": true,
+    "auto_upload_prices": false,
+    "data_source_priority": "local",
+    "prices_per_page": 50
+  },
+  "stats": {
+    "prices_scraped": 85,
+    "products_added": 0,
+    "last_scraping": "2025-09-06T16:23:03.792504"
+  }
+}

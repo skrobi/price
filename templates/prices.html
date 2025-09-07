@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Pobieranie Cen{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Dodatkowe style dla AJAX fetch prices */
+.ajax-controls {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.ajax-controls .btn {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.fetch-info {
+    margin-left: 15px;
+    color: #6c757d;
+    font-size: 0.9em;
+    display: inline-block;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="prices-header">
+    <h1>💰 Zarządzanie Cenami</h1>
+    <div class="results-info">
+        📊 {{ pagination.total_items }} {% if pagination.total_items == 1 %}cena{% elif pagination.total_items < 5 %}ceny{% else %}cen{% endif %}
+    </div>
+</div>
+
+<!-- AJAX Pobieranie cen -->
+<div class="ajax-controls">
+    <h3>🔄 Pobieranie cen</h3>
+    <button onclick="startAjaxFetching()" class="btn btn-success" id="fetch-btn">
+        🚀 Pobierz wszystkie ceny (AJAX)
+    </button>
+    <button onclick="stopFetching()" class="btn btn-danger" style="display: none;" id="stop-btn">
+        ⏹️ Stop
+    </button>
+    <span class="fetch-info">
+        Pobiera ceny po jednej bez przeładowania strony
+    </span>
+</div>
+
+<!-- Pasek postępu -->
+<div id="progress-container" style="display: none; margin: 20px 0;">
+    <div style="background: #f0f0f0; border-radius: 10px; padding: 3px;">
+        <div id="progress-bar" style="background: #28a745; height: 25px; border-radius: 7px; width: 0%; transition: width 0.3s;"></div>
+    </div>
+    <div id="progress-text" style="margin-top: 5px; font-size: 0.9em;">Przygotowanie...</div>
+</div>
+
+<!-- Wyniki na żywo -->
+<div id="live-results" style="margin: 20px 0; display: none;">
+    <h3>📈 Wyniki na żywo:</h3>
+    <div id="results-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f9f9f9;">
+        <!-- Wyniki będą dodawane przez JavaScript -->
+    </div>
+</div>
+
+<!-- Filtry -->
+<div class="filters-container">
+    <h3>🔍 Filtry</h3>
+    <form method="GET" class="filters-row">
+        <div class="filter-group">
+            <label for="shop">Sklep:</label>
+            <select name="shop" id="shop">
+                <option value="">-- Wszystkie sklepy --</option>
+                {% for shop in unique_shops %}
+                    <option value="{{ shop }}" {% if shop == current_shop_filter %}selected{% endif %}>
+                        {{ shop }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label for="product">Produkt:</label>
+            <input type="text" name="product" id="product" 
+                   value="{{ current_product_filter }}" 
+                   placeholder="Nazwa produktu..."
+                   class="search-input">
+        </div>
+        
+        <div class="filter-group">
+            <button type="submit" class="btn">🔍 Filtruj</button>
+            <a href="{{ url_for('prices.prices') }}" class="btn btn-secondary">🗑️ Wyczyść</a>
+        </div>
+    </form>
+</div>
+
+<!-- Informacje o paginacji -->
+{% if pagination.total_items > 0 %}
+<div class="pagination-info">
+    Wyświetlane: {{ pagination.start_item }}-{{ pagination.end_item }} z {{ pagination.total_items }} cen
+</div>
+{% endif %}
+
+<!-- Tabela cen -->
+{% if prices %}
+<table>
+    <thead>
+        <tr>
+            <th>📅 Data/Czas</th>
+            <th>📦 Produkt</th>
+            <th>🏪 Sklep</th>
+            <th>💱 Cena oryginalna</th>
+            <th>💰 Cena PLN</th>
+        </tr>
+    </thead>
+    <tbody id="prices-table">
+        {% for price in prices %}
+        <tr>
+            <td style="font-size: 0.9em;">{{ price.created[:16] }}</td>
+            <td>
+                <a href="{{ url_for('products.product_detail', product_id=price.product_id) }}" 
+                   style="color: #007bff; text-decoration: none;">
+                    <strong>{{ price.product_name }}</strong>
+                </a>
+            </td>
+            <td>
+                <span class="font-weight-bold">{{ price.shop_id }}</span>
+                {% if price.get('price_type') %}
+                    <br><small class="text-muted">{{ price.price_type }}</small>
+                {% endif %}
+            </td>
+            <td>
+                {% if price.currency != 'PLN' %}
+                    {{ "%.2f"|format(price.price) }} {{ price.currency }}
+                {% else %}
+                    {{ "%.2f"|format(price.price) }} PLN
+                {% endif %}
+            </td>
+            <td><strong style="color: #28a745;">{{ "%.2f"|format(price.price_pln) }} PLN</strong></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div style="text-align: center; padding: 40px; color: #666; background: #f8f9fa; border-radius: 8px;">
+    <h3>📊 Brak danych cenowych</h3>
+    {% if current_shop_filter or current_product_filter %}
+        <p>Nie znaleziono cen pasujących do wybranych filtrów.</p>
+        <a href="{{ url_for('prices.prices') }}" class="btn">🗑️ Wyczyść filtry</a>
+    {% else %}
+        <p>Rozpocznij od pobrania cen dla swoich produktów.</p>
+        <a href="{{ url_for('products.products') }}" class="btn">📦 Zobacz produkty</a>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Paginacja -->
+{% if pagination.total_pages > 1 %}
+<nav class="pagination">
+    <!-- Pierwsza strona -->
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('prices.prices', page=1, shop=current_shop_filter, product=current_product_filter) }}">
+            ⮮ Pierwsza
+        </a>
+    {% else %}
+        <span class="disabled">⮮ Pierwsza</span>
+    {% endif %}
+    
+    <!-- Poprzednia strona -->
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('prices.prices', page=pagination.prev_page, shop=current_shop_filter, product=current_product_filter) }}">
+            ⬅️ Poprzednia
+        </a>
+    {% else %}
+        <span class="disabled">⬅️ Poprzednia</span>
+    {% endif %}
+    
+    <!-- Numery stron -->
+    {% set start_page = [pagination.page - 2, 1]|max %}
+    {% set end_page = [pagination.page + 2, pagination.total_pages]|min %}
+    
+    {% if start_page > 1 %}
+        <a href="{{ url_for('prices.prices', page=1, shop=current_shop_filter, product=current_product_filter) }}">1</a>
+        {% if start_page > 2 %}
+            <span class="disabled">...</span>
+        {% endif %}
+    {% endif %}
+    
+    {% for page_num in range(start_page, end_page + 1) %}
+        {% if page_num == pagination.page %}
+            <span class="current">{{ page_num }}</span>
+        {% else %}
+            <a href="{{ url_for('prices.prices', page=page_num, shop=current_shop_filter, product=current_product_filter) }}">
+                {{ page_num }}
+            </a>
+        {% endif %}
+    {% endfor %}
+    
+    {% if end_page < pagination.total_pages %}
+        {% if end_page < pagination.total_pages - 1 %}
+            <span class="disabled">...</span>
+        {% endif %}
+        <a href="{{ url_for('prices.prices', page=pagination.total_pages, shop=current_shop_filter, product=current_product_filter) }}">
+            {{ pagination.total_pages }}
+        </a>
+    {% endif %}
+    
+    <!-- Następna strona -->
+    {% if pagination.has_next %}
+        <a href="{{ url_for('prices.prices', page=pagination.next_page, shop=current_shop_filter, product=current_product_filter) }}">
+            Następna ➡️
+        </a>
+    {% else %}
+        <span class="disabled">Następna ➡️</span>
+    {% endif %}
+    
+    <!-- Ostatnia strona -->
+    {% if pagination.has_next %}
+        <a href="{{ url_for('prices.prices', page=pagination.total_pages, shop=current_shop_filter, product=current_product_filter) }}">
+            Ostatnia ⭐
+        </a>
+    {% else %}
+        <span class="disabled">Ostatnia ⭐</span>
+    {% endif %}
+</nav>
+{% endif %}
+
+<!-- Statystyki na dole -->
+{% if pagination.total_items > 0 %}
+<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center;">
+    <strong>📊 Statystyki:</strong>
+    Strona {{ pagination.page }} z {{ pagination.total_pages }} | 
+    {{ pagination.items_per_page }} cen na stronę |
+    Łącznie: {{ pagination.total_items }} {% if pagination.total_items == 1 %}cena{% elif pagination.total_items < 5 %}ceny{% else %}cen{% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/prices.js') }}"></script>
+{% endblock %}

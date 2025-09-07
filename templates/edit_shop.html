@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Edytuj sklep: {{ shop.name }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('shops.shop_detail', shop_id=shop.shop_id) }}" style="color: #007bff; text-decoration: none;">← Powrót do sklepu</a>
+</div>
+
+<h1>✏️ Edytuj konfigurację: {{ shop.shop_id }}</h1>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 10px; margin: 10px 0; color: #155724;">
+            {% for message in messages %}
+                <div>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<form method="POST" id="shop-form">
+    
+    <!-- Sekcja podstawowe informacje -->
+    <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #007bff;">
+        <h3 style="margin-top: 0; color: #007bff;">📋 Podstawowe informacje</h3>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div class="form-group">
+                <label for="name"><strong>Nazwa sklepu:</strong></label><br>
+                <input type="text" id="name" name="name" value="{{ shop.name }}" 
+                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            
+            <div class="form-group">
+                <label for="currency"><strong>Waluta:</strong></label><br>
+                <select id="currency" name="currency" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="PLN" {% if shop.currency == 'PLN' %}selected{% endif %}>PLN - Polski Złoty</option>
+                    <option value="EUR" {% if shop.currency == 'EUR' %}selected{% endif %}>EUR - Euro</option>
+                    <option value="USD" {% if shop.currency == 'USD' %}selected{% endif %}>USD - Dolar amerykański</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sekcja selektory CSS -->
+    <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #6f42c1;">
+        <h3 style="margin-top: 0; color: #6f42c1;">🎯 Selektory CSS dla cen</h3>
+        
+        <div class="form-group">
+            <label for="selectors"><strong>Selektory CSS (jeden na linię):</strong></label><br>
+            <small style="color: #666;">System użyje pierwszego działającego selektora. Dodaj od najważniejszego do najmniej ważnego.</small><br>
+            <textarea id="selectors" name="selectors" rows="8" 
+                      style="width: 100%; font-family: monospace; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">{% if shop.price_selectors is mapping %}{% for selector in shop.price_selectors.promo %}{{ selector }}
+{% endfor %}{% for selector in shop.price_selectors.regular %}{{ selector }}
+{% endfor %}{% else %}{% for selector in shop.price_selectors %}{{ selector }}
+{% endfor %}{% endif %}</textarea>
+        </div>
+    </div>
+
+    <!-- Sekcja wyszukiwanie -->
+    <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #fd7e14;">
+        <h3 style="margin-top: 0; color: #fd7e14;">🔍 Konfiguracja wyszukiwania</h3>
+        
+        <div class="form-group">
+            <label for="search_url"><strong>URL wyszukiwarki:</strong></label><br>
+            <small style="color: #666;">Użyj <code>{query}</code> w miejscu gdzie ma być wstawiona wyszukiwana fraza</small><br>
+            <input type="url" id="search_url" name="search_url" 
+                   value="{{ shop.search_config.search_url if shop.search_config else '' }}" 
+                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                   placeholder="https://sklep.pl/szukaj?q={query}">
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+            <div class="form-group">
+                <label for="result_selectors"><strong>Selektory wyników:</strong></label><br>
+                <small style="color: #666;">Selektory CSS do linków produktów w wynikach wyszukiwania</small><br>
+                <textarea id="result_selectors" name="result_selectors" rows="4" 
+                          style="width: 100%; font-family: monospace; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                          placeholder=".product-item a&#10;.search-result a">{% if shop.search_config and shop.search_config.result_selectors %}{% for selector in shop.search_config.result_selectors %}{{ selector }}
+{% endfor %}{% endif %}</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="title_selectors"><strong>Selektory tytułów:</strong></label><br>
+                <small style="color: #666;">Selektory CSS do nazw produktów w wynikach</small><br>
+                <textarea id="title_selectors" name="title_selectors" rows="4" 
+                          style="width: 100%; font-family: monospace; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                          placeholder=".product-name&#10;.product-title&#10;h2">{% if shop.search_config and shop.search_config.title_selectors %}{% for selector in shop.search_config.title_selectors %}{{ selector }}
+{% endfor %}{% endif %}</textarea>
+            </div>
+        </div>
+        
+        <div class="form-group" style="margin-top: 15px;">
+            <label><strong>Metody wyszukiwania:</strong></label><br>
+            <small style="color: #666;">Wybierz sposoby wyszukiwania produktów</small><br>
+            <div style="margin-top: 8px;">
+                <label style="display: inline-block; margin-right: 20px;">
+                    <input type="checkbox" name="search_methods" value="name" 
+                           {% if shop.search_config and 'name' in shop.search_config.search_methods %}checked{% endif %}> 
+                    📝 Wyszukiwanie po nazwie
+                </label>
+                <label style="display: inline-block; margin-right: 20px;">
+                    <input type="checkbox" name="search_methods" value="ean" 
+                           {% if shop.search_config and 'ean' in shop.search_config.search_methods %}checked{% endif %}> 
+                    🔢 Wyszukiwanie po kodzie EAN
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sekcja dostawa -->
+    <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #28a745;">
+        <h3 style="margin-top: 0; color: #28a745;">🚚 Ustawienia dostawy</h3>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="form-group">
+                <label for="delivery_free_from"><strong>Darmowa dostawa od:</strong></label><br>
+                <small style="color: #666;">Minimalna kwota dla darmowej dostawy</small><br>
+                <input type="number" id="delivery_free_from" name="delivery_free_from" 
+                       value="{{ shop.delivery_free_from or '' }}" 
+                       step="0.01" min="0" 
+                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                       placeholder="np. 199.00">
+            </div>
+
+            <div class="form-group">
+                <label for="delivery_cost"><strong>Koszt dostawy:</strong></label><br>
+                <small style="color: #666;">Standardowy koszt dostawy</small><br>
+                <input type="number" id="delivery_cost" name="delivery_cost" 
+                       value="{{ shop.delivery_cost or '' }}" 
+                       step="0.01" min="0" 
+                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                       placeholder="np. 11.99">
+            </div>
+        </div>
+    </div>
+
+    <!-- Przyciski -->
+    <div style="text-align: center; margin: 30px 0;">
+        <button type="submit" class="btn" style="background: #28a745; color: white; font-size: 1.1em; padding: 12px 24px; margin: 5px;">
+            💾 Zapisz zmiany
+        </button>
+        <a href="{{ url_for('shops.shop_detail', shop_id=shop.shop_id) }}" 
+           class="btn" style="background: #6c757d; color: white; font-size: 1.1em; padding: 12px 24px; margin: 5px;">
+            Anuluj
+        </a>
+        <button type="button" onclick="testConfiguration()" 
+                class="btn" style="background: #17a2b8; color: white; font-size: 1.1em; padding: 12px 24px; margin: 5px;">
+            🧪 Testuj konfigurację
+        </button>
+    </div>
+</form>
+
+<!-- Pomoce -->
+<div style="margin-top: 40px; padding: 20px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+    <h3 style="margin-top: 0; color: #856404;">💡 Porady konfiguracyjne</h3>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+        <div>
+            <strong>🎯 Selektory cen:</strong>
+            <ul style="margin: 5px 0; color: #856404; line-height: 1.5;">
+                <li>Użyj narzędzi deweloperskich przeglądarki (F12)</li>
+                <li>Kliknij prawym na cenę → "Zbadaj element"</li>
+                <li>Skopiuj selektor CSS elementu</li>
+            </ul>
+            <p><strong>Przykład dla {{ shop.shop_id }}:</strong><br>
+            <code style="background: #fff; padding: 2px 4px; border-radius: 3px;">.product-price-value</code></p>
+        </div>
+        
+        <div>
+            <strong>🔍 URL wyszukiwarki:</strong>
+            <ul style="margin: 5px 0; color: #856404; line-height: 1.5;">
+                <li>Wyszukaj coś w sklepie ręcznie</li>
+                <li>Skopiuj URL z paska adresu</li>
+                <li>Zastąp wyszukiwaną frazę przez <code>{query}</code></li>
+            </ul>
+            <p><strong>Przykład:</strong><br>
+            <code style="background: #fff; padding: 2px 4px; border-radius: 3px; word-break: break-all;">https://sklep.pl/szukaj?q={query}</code></p>
+        </div>
+        
+        <div>
+            <strong>🚚 Dostawa:</strong>
+            <ul style="margin: 5px 0; color: #856404; line-height: 1.5;">
+                <li>Sprawdź regulamin sklepu</li>
+                <li>Znajdź informacje o kosztach dostawy</li>
+                <li>Sprawdź próg darmowej dostawy</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+function testConfiguration() {
+    const searchUrl = document.getElementById('search_url').value;
+    if (searchUrl && searchUrl.includes('{query}')) {
+        const testUrl = searchUrl.replace('{query}', 'test');
+        window.open(testUrl, '_blank');
+    } else {
+        alert('Skonfiguruj URL wyszukiwarki z {query}');
+    }
+}
+</script>
+
+<style>
+.btn {
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.form-group {
+    margin: 15px 0;
+}
+
+.form-group label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: block;
+}
+
+code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+</style>
+
+{% endblock %}

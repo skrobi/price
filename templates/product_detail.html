@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/product_detail.css') }}">
+{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('products.products') }}" style="color: #007bff; text-decoration: none;">← Powrót do listy produktów</a>
+</div>
+
+<div class="product-header">
+    <h1 style="margin: 0;">📦 {{ product.name }}</h1>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button onclick="editProduct()" class="btn" style="background: #ffc107; color: #000;">
+            ✏️ Edytuj produkt
+        </button>
+        <button onclick="confirmDeleteProduct()" class="btn btn-danger">
+            🗑️ Usuń produkt
+        </button>
+    </div>
+</div>
+
+<div class="product-info">
+    <strong>EAN:</strong> {{ product.ean or 'Nie podano' }}<br>
+    <strong>Data dodania:</strong> {{ product.created[:10] }}<br>
+    <strong>Liczba linków:</strong> {{ links|length }}<br>
+    <!-- Informacje o zamiennikach -->
+    {% if product.get('substitute_group') %}
+    <strong>Grupa zamienników:</strong> 
+    <span style="color: #28a745;">✅ Tak</span>
+    <a href="#substitutes-section" style="margin-left: 10px; color: #007bff; text-decoration: none;">Zobacz zamienniki</a>
+    {% else %}
+    <strong>Grupa zamienników:</strong> 
+    <span style="color: #999;">Brak</span>
+    <button onclick="showCreateGroupModal()" class="btn" style="background: #ffc107; color: #000; font-size: 0.8em; padding: 4px 8px; margin-left: 10px;">
+        🔗 Dodaj do grupy
+    </button>
+    {% endif %}
+</div>
+
+<div class="product-actions">
+    <a href="{{ url_for('products.add_link_to_product', product_id=product.id) }}" 
+       class="btn" style="background: #28a745;">
+        ➕ Dodaj link ręcznie
+    </a>
+    
+    <button onclick="findInOtherShops()" class="btn" style="background: #17a2b8;">
+        🔍 Znajdź w innych sklepach
+    </button>
+    
+    <button onclick="showAvailableShops()" class="btn" style="background: #ffc107; color: #000;">
+        📊 Zobacz dostępne sklepy
+    </button>
+    
+    <!-- Przycisk zarządzania zamiennikmi -->
+    <button onclick="showSubstitutesModal()" class="btn" style="background: #6f42c1; color: white;">
+        🔄 Zamienniki
+    </button>
+</div>
+
+<!-- Status wyszukiwania -->
+<div id="search-status" style="display: none;" class="search-status">
+    <h3 style="margin-top: 0;">🔍 Wyniki wyszukiwania</h3>
+    <div id="search-results">
+        <!-- Wyniki będą dodawane przez JavaScript -->
+    </div>
+</div>
+
+<!-- Sekcja linków sklepów -->
+<div class="shop-links-container">
+    <h2>🏪 Linki sklepów ({{ links|length }})</h2>
+    
+    {% if links %}
+        {% for link in links %}
+        <div class="shop-link-item">
+            <div class="shop-link-content">
+                <div class="shop-link-info">
+                    <div class="shop-link-name">
+                        <a href="{{ url_for('shops.shop_detail', shop_id=link.shop_id) }}" style="color: #495057; font-size: 1.1em; text-decoration: none;">
+                            <strong>🪙 {{ link.shop_id }}</strong>
+                        </a>
+                        {% if link.price %}
+                            <span class="price-badge">
+                                💰 {{ "%.2f"|format(link.price_pln) }} PLN
+                            </span>
+                            {% if link.currency != 'PLN' %}
+                                <span class="currency-info">
+                                    ({{ "%.2f"|format(link.price) }} {{ link.currency }})
+                                </span>
+                            {% endif %}
+                        {% else %}
+                            <span class="price-badge no-price">
+                                ❓ Brak ceny
+                            </span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="shop-link-url">
+                        <a href="{{ link.url }}" target="_blank">
+                            🔗 {{ link.url[:80] }}{% if link.url|length > 80 %}...{% endif %}
+                        </a>
+                    </div>
+                    
+                    <div class="shop-link-meta">
+                        📅 Dodano: {{ link.created[:16] }}
+                        {% if link.price_updated %}
+                            | 💰 Ostatnia cena: {{ link.price_updated }}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Przyciski akcji -->
+                <div class="shop-link-actions">
+                    <button onclick="editLink('{{ link.shop_id|e }}', '{{ link.url|e }}')" 
+                            class="btn" style="background: #ffc107; color: #000; font-size: 0.85em; padding: 5px 10px;">
+                        ✏️ Edytuj
+                    </button>
+                    <button onclick="fetchPriceForLink('{{ link.shop_id|e }}', '{{ link.url|e }}')" 
+                            class="btn btn-fetch-price" style="background: #17a2b8; font-size: 0.85em; padding: 5px 10px;">
+                        🔄 Pobierz cenę
+                    </button>
+                    <button onclick="confirmDeleteLink('{{ link.shop_id|e }}', '{{ link.url|e }}')" 
+                            class="btn btn-danger" style="font-size: 0.85em; padding: 5px 10px;">
+                        🗑️ Usuń
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div style="text-align: center; color: #666; padding: 40px; background: #f8f9fa; border-radius: 8px;">
+            <h3>📦 Brak linków dla tego produktu</h3>
+            <p>Dodaj linki do sklepów aby móc monitorować ceny</p>
+            <a href="{{ url_for('products.add_link_to_product', product_id=product.id) }}" 
+               class="btn" style="background: #28a745;">
+                ➕ Dodaj pierwszy link
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Sekcja zamienników (jeśli istnieją) -->
+{% if product.get('substitute_group') %}
+<div id="substitutes-section" style="margin: 40px 0;">
+    <h2>🔄 Zamienniki</h2>
+    <div id="substitutes-list">
+        <!-- Zamienniki będą ładowane przez JavaScript -->
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal edycji produktu będzie tworzony przez JS -->
+<!-- Modal ręcznego wprowadzania ceny będzie tworzony przez JS -->
+<!-- Modal sklepów będzie tworzony przez JS -->
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Przekaż PRODUCT_ID do JavaScript
+    window.PRODUCT_ID = {{ product.id }};
+</script>
+<script src="{{ url_for('static', filename='js/product_detail.js') }}"></script>
+{% endblock %}

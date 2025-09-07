@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+{% block title %}Zarządzanie Sklepami{% endblock %}
+{% block content %}
+<h1>Zarządzanie Sklepami</h1>
+
+<p>Tutaj możesz konfigurować selektory CSS i inne ustawienia dla każdego sklepu.</p>
+
+{% if shops %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0;">
+    <h2>Skonfigurowane sklepy ({{ shops|length }})</h2>
+    
+    <!-- Opcje sortowania -->
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <label for="sortBy" style="margin: 0; font-weight: bold;">Sortuj według:</label>
+        <select id="sortBy" onchange="sortTable()" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+            <option value="name">Nazwa sklepu</option>
+            <option value="shop_id">ID sklepu</option>
+            <option value="products_count">Liczba produktów</option>
+            <option value="delivery">Dostawa</option>
+            <option value="currency">Waluta</option>
+        </select>
+        
+        <button id="sortDirection" onclick="toggleSortDirection()" 
+                style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer;" 
+                title="Zmień kierunek sortowania">
+            ⬆️ Rosnąco
+        </button>
+    </div>
+</div>
+
+<table id="shopsTable">
+    <thead>
+        <tr>
+            <th onclick="sortBy('shop_id')" style="cursor: pointer;" title="Kliknij aby posortować">
+                ID Sklepu <span class="sort-arrow">⚬</span>
+            </th>
+            <th onclick="sortBy('name')" style="cursor: pointer;" title="Kliknij aby posortować">
+                Nazwa <span class="sort-arrow">⚬</span>
+            </th>
+            <th onclick="sortBy('products_count')" style="cursor: pointer;" title="Kliknij aby posortować">
+                Produkty <span class="sort-arrow">⚬</span>
+            </th>
+            <th onclick="sortBy('selectors')" style="cursor: pointer;" title="Kliknij aby posortować">
+                Selektorów cen <span class="sort-arrow">⚬</span>
+            </th>
+            <th onclick="sortBy('delivery')" style="cursor: pointer;" title="Kliknij aby posortować">
+                Dostawa <span class="sort-arrow">⚬</span>
+            </th>
+            <th onclick="sortBy('currency')" style="cursor: pointer;" title="Kliknij aby posortować">
+                Waluta <span class="sort-arrow">⚬</span>
+            </th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody id="shopsTableBody">
+        {% for shop in shops %}
+        <tr data-shop-id="{{ shop.shop_id }}" 
+            data-name="{{ shop.name|lower }}" 
+            data-products-count="{{ shop.products_count|default(0) }}"
+            data-selectors="{{ shop.price_selectors|length }}"
+            data-delivery="{{ shop.delivery_free_from|default(999999) }}"
+            data-currency="{{ shop.currency|lower }}">
+            
+            <td><strong>{{ shop.shop_id }}</strong></td>
+            
+            <td>
+                <strong>{{ shop.name }}</strong>
+                {% if shop.search_config and shop.search_config.search_url %}
+                    <br><small style="color: #28a745;">🔍 Wyszukiwanie skonfigurowane</small>
+                {% endif %}
+            </td>
+            
+            <td style="text-align: center;">
+                {% if shop.products_count is defined and shop.products_count > 0 %}
+                    <strong style="color: #28a745;">{{ shop.products_count }}</strong>
+                    <br><small style="color: #666;">produktów</small>
+                {% else %}
+                    <span style="color: #999;">0</span>
+                    <br><small style="color: #999;">produktów</small>
+                {% endif %}
+            </td>
+            
+            <td style="text-align: center;">
+                {% if shop.price_selectors and shop.price_selectors|length > 0 %}
+                    <strong>{{ shop.price_selectors|length }}</strong>
+                    {% if shop.price_selectors|length >= 3 %}
+                        <span style="color: #28a745;" title="Dobrze skonfigurowane">✅</span>
+                    {% elif shop.price_selectors|length >= 1 %}
+                        <span style="color: #ffc107;" title="Podstawowa konfiguracja">⚠️</span>
+                    {% endif %}
+                {% else %}
+                    <span style="color: #dc3545;">0</span>
+                    <span style="color: #dc3545;" title="Brak selektorów">❌</span>
+                {% endif %}
+            </td>
+            
+            <td>
+                {% if shop.delivery_free_from %}
+                    <span style="color: #28a745;">🚚 Darmowa od {{ shop.delivery_free_from }} {{ shop.currency|default('PLN') }}</span>
+                {% elif shop.delivery_cost %}
+                    <span style="color: #ffc107;">💰 {{ shop.delivery_cost }} {{ shop.currency|default('PLN') }}</span>
+                {% else %}
+                    <span style="color: #999;">❓ Nie skonfigurowano</span>
+                {% endif %}
+            </td>
+            
+            <td style="text-align: center;">
+                <strong>{{ shop.currency|default('PLN') }}</strong>
+                {% if shop.currency == 'PLN' %}
+                    🇵🇱
+                {% elif shop.currency == 'EUR' %}
+                    🇪🇺
+                {% elif shop.currency == 'USD' %}
+                    🇺🇸
+                {% endif %}
+            </td>
+            
+            <td>
+                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                    <a href="{{ url_for('shops.shop_detail', shop_id=shop.shop_id) }}" 
+                       class="btn" style="background: #17a2b8; font-size: 0.8em; padding: 4px 8px;">
+                        👁️ Szczegóły
+                    </a>
+                    <a href="{{ url_for('shops.edit_shop', shop_id=shop.shop_id) }}" 
+                       class="btn" style="background: #ffc107; color: #000; font-size: 0.8em; padding: 4px 8px;">
+                        ✏️ Edytuj
+                    </a>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Statystyki -->
+<div style="margin: 20px 0; padding: 15px; background: #e9ecef; border-radius: 5px;">
+    <h4 style="margin-top: 0;">📊 Statystyki sklepów:</h4>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <div>
+            <strong>Łącznie sklepów:</strong> {{ shops|length }}<br>
+            <small>Unikalne domeny internetowe</small>
+        </div>
+        <div id="stats-products">
+            <strong>Łącznie produktów:</strong> <span id="total-products">Liczenie...</span><br>
+            <small>We wszystkich sklepach</small>
+        </div>
+        <div id="stats-configured">
+            <strong>Skonfigurowane:</strong> <span id="configured-count">Liczenie...</span><br>
+            <small>Sklepy z selektorami cen</small>
+        </div>
+        <div id="stats-search">
+            <strong>Z wyszukiwaniem:</strong> <span id="search-count">Liczenie...</span><br>
+            <small>Sklepy z możliwością wyszukiwania</small>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div style="text-align: center; padding: 40px; color: #666; background: #f8f9fa; border-radius: 8px;">
+    <h3>🏪 Brak sklepów</h3>
+    <p>Sklepy automatycznie dodają się gdy dodajesz produkty z nowych URL.</p>
+    <a href="{{ url_for('products.add_product_url') }}" class="btn" style="background: #28a745; color: white; padding: 12px 20px;">
+        ➕ Dodaj pierwszy produkt
+    </a>
+</div>
+{% endif %}
+
+<div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 5px;">
+    <h3>💡 Jak to działa:</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+        <div>
+            <h4>🏪 Automatyczne dodawanie</h4>
+            <ul style="margin: 5px 0; line-height: 1.5;">
+                <li>Sklepy automatycznie dodają się gdy dodajesz produkty z nowych URL</li>
+                <li>System wykrywa domenę i tworzy konfigurację</li>
+                <li>Możesz edytować ustawienia każdego sklepu</li>
+            </ul>
+        </div>
+        
+        <div>
+            <h4>🎯 Selektory CSS</h4>
+            <ul style="margin: 5px 0; line-height: 1.5;">
+                <li>System używa pierwszego działającego selektora z listy</li>
+                <li>Jeśli żaden selektor nie działa, używa regex na całej stronie</li>
+                <li>Zalecane: minimum 3 selektory dla stabilności</li>
+            </ul>
+        </div>
+        
+        <div>
+            <h4>🔍 Znajdowanie selektorów</h4>
+            <ol style="margin: 5px 0; line-height: 1.5;">
+                <li>Otwórz stronę produktu w przeglądarce</li>
+                <li>Kliknij prawym przyciskiem na cenę → "Zbadaj element"</li>
+                <li>Znajdź element z ceną i skopiuj jego selektor CSS</li>
+                <li>Dodaj selektor do konfiguracji sklepu</li>
+            </ol>
+        </div>
+        
+        <div>
+            <h4>📋 Przykłady selektorów</h4>
+            <p style="margin: 5px 0; line-height: 1.5;">
+                <strong>Rosa24.pl:</strong><br>
+                <code style="background: #fff; padding: 2px 4px; border-radius: 3px; font-size: 0.85em;">
+                    .product-card__price-card-header__prices__price--purchase
+                </code>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentSort = {
+    column: 'name',
+    direction: 'asc'
+};
+
+// Oblicz statystyki po załadowaniu strony
+document.addEventListener('DOMContentLoaded', function() {
+    calculateStats();
+    
+    // Ustaw domyślne sortowanie
+    sortTable();
+});
+
+function calculateStats() {
+    const rows = document.querySelectorAll('#shopsTableBody tr');
+    let totalProducts = 0;
+    let configuredCount = 0;
+    let searchCount = 0;
+    
+    rows.forEach(row => {
+        const productsCount = parseInt(row.dataset.productsCount) || 0;
+        const selectorsCount = parseInt(row.dataset.selectors) || 0;
+        const hasSearch = row.querySelector('small:contains("Wyszukiwanie skonfigurowane")') !== null;
+        
+        totalProducts += productsCount;
+        if (selectorsCount > 0) configuredCount++;
+        if (hasSearch) searchCount++;
+    });
+    
+    document.getElementById('total-products').textContent = totalProducts;
+    document.getElementById('configured-count').textContent = `${configuredCount}/${rows.length}`;
+    document.getElementById('search-count').textContent = `${searchCount}/${rows.length}`;
+}
+
+function sortBy(column) {
+    // Jeśli kliknięto tę samą kolumnę, zmień kierunek
+    if (currentSort.column === column) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.column = column;
+        currentSort.direction = 'asc';
+    }
+    
+    // Zaktualizuj select
+    document.getElementById('sortBy').value = column;
+    updateSortDirectionButton();
+    
+    sortTable();
+}
+
+function sortTable() {
+    const column = document.getElementById('sortBy').value;
+    currentSort.column = column;
+    
+    const tbody = document.getElementById('shopsTableBody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'name':
+                aVal = a.dataset.name;
+                bVal = b.dataset.name;
+                break;
+            case 'shop_id':
+                aVal = a.dataset.shopId.toLowerCase();
+                bVal = b.dataset.shopId.toLowerCase();
+                break;
+            case 'products_count':
+                aVal = parseInt(a.dataset.productsCount) || 0;
+                bVal = parseInt(b.dataset.productsCount) || 0;
+                break;
+            case 'selectors':
+                aVal = parseInt(a.dataset.selectors) || 0;
+                bVal = parseInt(b.dataset.selectors) || 0;
+                break;
+            case 'delivery':
+                aVal = parseInt(a.dataset.delivery) || 999999;
+                bVal = parseInt(b.dataset.delivery) || 999999;
+                break;
+            case 'currency':
+                aVal = a.dataset.currency;
+                bVal = b.dataset.currency;
+                break;
+            default:
+                return 0;
+        }
+        
+        let result;
+        if (typeof aVal === 'string') {
+            result = aVal.localeCompare(bVal);
+        } else {
+            result = aVal - bVal;
+        }
+        
+        return currentSort.direction === 'desc' ? -result : result;
+    });
+    
+    // Wyczyść tbody i dodaj posortowane wiersze
+    tbody.innerHTML = '';
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Zaktualizuj strzałki w nagłówkach
+    updateSortArrows();
+}
+
+function toggleSortDirection() {
+    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    updateSortDirectionButton();
+    sortTable();
+}
+
+function updateSortDirectionButton() {
+    const button = document.getElementById('sortDirection');
+    if (currentSort.direction === 'asc') {
+        button.innerHTML = '⬆️ Rosnąco';
+        button.title = 'Zmień na malejąco';
+    } else {
+        button.innerHTML = '⬇️ Malejąco';
+        button.title = 'Zmień na rosnąco';
+    }
+}
+
+function updateSortArrows() {
+    // Wyczyść wszystkie strzałki
+    document.querySelectorAll('.sort-arrow').forEach(arrow => {
+        arrow.textContent = '⚬';
+        arrow.style.color = '#ccc';
+    });
+    
+    // Znajdź odpowiedni nagłówek i ustaw strzałkę
+    const headers = {
+        'shop_id': 0,
+        'name': 1,
+        'products_count': 2,
+        'selectors': 3,
+        'delivery': 4,
+        'currency': 5
+    };
+    
+    const headerIndex = headers[currentSort.column];
+    if (headerIndex !== undefined) {
+        const arrow = document.querySelectorAll('.sort-arrow')[headerIndex];
+        if (arrow) {
+            arrow.textContent = currentSort.direction === 'asc' ? '⬆️' : '⬇️';
+            arrow.style.color = '#007bff';
+        }
+    }
+}
+
+// Event listener dla select
+document.addEventListener('DOMContentLoaded', function() {
+    const sortSelect = document.getElementById('sortBy');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            currentSort.column = this.value;
+            sortTable();
+        });
+    }
+});
+</script>
+
+<style>
+th {
+    position: relative;
+    user-select: none;
+}
+
+th:hover {
+    background-color: #e9ecef;
+}
+
+.sort-arrow {
+    font-size: 0.8em;
+    margin-left: 5px;
+    color: #ccc;
+}
+
+#shopsTable tr:hover {
+    background-color: #f8f9fa;
+}
+
+code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    word-break: break-all;
+}
+
+.btn {
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
+
+{% endblock %}

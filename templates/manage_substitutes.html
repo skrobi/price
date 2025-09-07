@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% block title %}Zarządzanie zamiennikmi{% endblock %}
+{% block content %}
+
+<h1>🔄 Zarządzanie zamiennikmi produktów</h1>
+
+<div style="background: #f8f9fa; padding: 15px; margin: 15px 0; border-radius: 5px;">
+    <p><strong>Zamienniki produktów</strong> umożliwiają systemowi automatyczne zastępowanie niedostępnych lub drogich produktów podczas optymalizacji koszyka.</p>
+    <p>Przykłady zastosowań: leki generyczne, różne pojemności, różne marki w tej samej kategorii.</p>
+</div>
+
+<div style="margin: 20px 0;">
+    <button onclick="showCreateGroupModal()" class="btn" style="background: #28a745; color: white; padding: 10px 15px;">
+        ➕ Utwórz nową grupę zamienników
+    </button>
+    <button onclick="loadGroups()" class="btn" style="background: #17a2b8; color: white; padding: 10px 15px;">
+        🔄 Odśwież listę
+    </button>
+</div>
+
+<div id="groups-container">
+    <div style="text-align: center; padding: 40px; color: #666;">
+        Ładowanie grup zamienników...
+    </div>
+</div>
+
+<!-- Modal tworzenia grupy -->
+<div id="create-group-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background: white; margin: 50px auto; padding: 25px; border-radius: 8px; max-width: 700px; max-height: 85%; overflow-y: auto;">
+        <h3 style="margin-top: 0;">🔗 Utwórz nową grupę zamienników</h3>
+        
+        <div style="margin: 20px 0;">
+            <label><strong>Nazwa grupy:</strong></label><br>
+            <input type="text" id="new-group-name" placeholder="np. iPhone 15 różne pojemności" 
+                   style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <label><strong>Szukaj produktów:</strong></label><br>
+            <input type="text" id="new-group-search" placeholder="Wpisz nazwę produktu..." 
+                   oninput="searchProductsForNewGroup(this.value)"
+                   style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+        </div>
+        
+        <div id="new-group-search-results" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; margin: 10px 0;">
+            <!-- Wyniki wyszukiwania -->
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <label><strong>Wybrane produkty:</strong></label>
+            <div id="new-group-selected" style="min-height: 80px; border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin-top: 5px;">
+                <div style="color: #666; text-align: center; padding: 20px;">Brak wybranych produktów</div>
+            </div>
+        </div>
+        
+        <div style="text-align: right; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 15px;">
+            <button onclick="hideCreateGroupModal()" class="btn" style="background: #6c757d; color: white; margin-right: 10px;">Anuluj</button>
+            <button onclick="createNewGroup()" class="btn" style="background: #28a745; color: white;">🔗 Utwórz grupę</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedProductsForNewGroup = [];
+let allSubstituteGroups = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadGroups();
+});
+
+async function loadGroups() {
+    try {
+        const response = await fetch('/api/substitutes/groups');
+        const data = await response.json();
+        
+        const container = document.getElementById('groups-container');
+        
+        if (data.success) {
+            allSubstituteGroups = data.groups;
+            displayGroups(data.groups);
+        } else {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #dc3545;">
+                    Błąd: ${data.error}
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        document.getElementById('groups-container').innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #dc3545;">
+                Błąd podczas ładowania: ${error.message}
+            </div>
+        `;
+    }
+}
+
+function displayGroups(groups) {
+    const container = document.getElementById('groups-container');
+    
+    if (groups.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #666; background: #f8f9fa; border-radius: 8px;">
+                <h3>Brak grup zamienników</h3>
+                <p>Utwórz pierwszą grupę aby móc zarządzać zamiennością produktów.</p>
+                <button onclick="showCreateGroupModal()" class="btn" style="background: #28a745; color: white;">
+                    ➕ Utwórz pierwszą grupę
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <h2>Grupy zamienników (${groups.length})</h2>
+        <div style="display: grid; gap: 20px;">
+    `;
+    
+    groups.forEach(group => {
+        html += `
+            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 20px; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div>
+                        <h3 style="margin: 0; color: #28a745;">${escapeHtml(group.name)}</h3>
+                        <small style="color: #666;">Utworzona: ${group.created.substring(0, 10)} | ${group.product_count} produktów</small>
+                    </div>
+                    <div>
+                        <button onclick="editGroup('${group.group_id}')" class="btn" style="background: #ffc107; color: #000; font-size: 0.9em; margin-right: 5px;">
+                            ✏️ Edytuj
+                        </button>
+                        <button onclick="deleteGroup('${group.group_id}')" class="btn" style="background: #dc3545; color: white; font-size: 0.9em;">
+                            🗑️ Usuń
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="margin: 15px 0;">
+                    <h5>Produkty w grupie:</h5>
+                    <div style="display: grid; gap: 8px;">
+        `;
+        
+        group.products.forEach(product => {
+            html += `
+                        <div style="padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${escapeHtml(product.name)}</strong>
+                                <br><small style="color: #666;">ID: ${product.id} | Priorytet: ${product.priority}</small>
+                            </div>
+                            <a href="/product/${product.id}" class="btn" style="background: #17a2b8; color: white; font-size: 0.8em;">
+                                👁️ Zobacz
+                            </a>
+                        </div>
+            `;
+        });
+        
+        html += `
+                    </div>
+                </div>
+                
+                <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 0.9em;">
+                    <strong>Ustawienia:</strong>
+                    Max wzrost ceny: ${group.settings.max_price_increase_percent || 20}% | 
+                    Auto-zastępowanie: ${group.settings.allow_automatic_substitution ? 'Tak' : 'Nie'}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function showCreateGroupModal() {
+    selectedProductsForNewGroup = [];
+    updateNewGroupSelectedDisplay();
+    document.getElementById('create-group-modal').style.display = 'block';
+}
+
+function hideCreateGroupModal() {
+    document.getElementById('create-group-modal').style.display = 'none';
+    document.getElementById('new-group-name').value = '';
+    document.getElementById('new-group-search').value = '';
+    document.getElementById('new-group-search-results').innerHTML = '';
+}
+
+async function searchProductsForNewGroup(searchTerm) {
+    if (searchTerm.length < 2) {
+        document.getElementById('new-group-search-results').innerHTML = '';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/products/search?q=${encodeURIComponent(searchTerm)}`);
+        const data = await response.json();
+        
+        const container = document.getElementById('new-group-search-results');
+        
+        if (data.success && data.products.length > 0) {
+            let html = '';
+            
+            data.products.slice(0, 15).forEach(product => {
+                const isSelected = selectedProductsForNewGroup.includes(product.id);
+                
+                html += `
+                    <div style="padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${escapeHtml(product.name)}</strong>
+                            <br><small style="color: #666;">ID: ${product.id}</small>
+                        </div>
+                        <button onclick="toggleProductForNewGroup(${product.id}, '${escapeHtml(product.name)}')" 
+                                class="btn" style="background: ${isSelected ? '#dc3545' : '#28a745'}; color: white; font-size: 0.8em;">
+                            ${isSelected ? '❌ Usuń' : '➕ Dodaj'}
+                        </button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div style="padding: 15px; text-align: center; color: #666;">Nie znaleziono produktów</div>';
+        }
+        
+    } catch (error) {
+        console.error('Błąd wyszukiwania:', error);
+    }
+}
+
+function toggleProductForNewGroup(productId, productName) {
+    const index = selectedProductsForNewGroup.findIndex(p => p.id === productId);
+    
+    if (index > -1) {
+        selectedProductsForNewGroup.splice(index, 1);
+    } else {
+        selectedProductsForNewGroup.push({ id: productId, name: productName });
+    }
+    
+    updateNewGroupSelectedDisplay();
+    
+    // Odśwież wyniki wyszukiwania
+    const searchTerm = document.getElementById('new-group-search').value;
+    if (searchTerm) {
+        searchProductsForNewGroup(searchTerm);
+    }
+}
+
+function updateNewGroupSelectedDisplay() {
+    const container = document.getElementById('new-group-selected');
+    
+    if (selectedProductsForNewGroup.length === 0) {
+        container.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Brak wybranych produktów</div>';
+        return;
+    }
+    
+    let html = '';
+    selectedProductsForNewGroup.forEach(product => {
+        html += `
+            <div style="padding: 8px; margin: 5px 0; background: #e8f5e8; border: 1px solid #28a745; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <strong>${escapeHtml(product.name)}</strong>
+                <button onclick="toggleProductForNewGroup(${product.id}, '${escapeHtml(product.name)}')" 
+                        class="btn" style="background: #dc3545; color: white; font-size: 0.7em;">
+                    ❌
+                </button>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+async function createNewGroup() {
+    const groupName = document.getElementById('new-group-name').value.trim();
+    
+    if (!groupName) {
+        alert('Podaj nazwę grupy');
+        return;
+    }
+    
+    if (selectedProductsForNewGroup.length < 2) {
+        alert('Grupa musi zawierać co najmniej 2 produkty');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/substitutes/create_group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: groupName,
+                product_ids: selectedProductsForNewGroup.map(p => p.id)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`✅ Utworzono grupę zamienników: ${groupName}`);
+            hideCreateGroupModal();
+            loadGroups(); // Odśwież listę grup
+        } else {
+            alert(`❌ Błąd: ${result.error}`);
+        }
+        
+    } catch (error) {
+        alert(`❌ Błąd: ${error.message}`);
+    }
+}
+
+async function deleteGroup(groupId) {
+    const group = allSubstituteGroups.find(g => g.group_id === groupId);
+    if (!group) return;
+    
+    const confirmMessage = `Czy na pewno chcesz usunąć grupę "${group.name}"?\n\nTo usunie powiązania zamienników, ale nie usunie samych produktów.`;
+    
+    if (!confirm(confirmMessage)) return;
+    
+    try {
+        const response = await fetch(`/api/substitutes/groups/${groupId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Grupa została usunięta');
+            loadGroups(); // Odśwież listę
+        } else {
+            alert(`❌ Błąd: ${result.error}`);
+        }
+        
+    } catch (error) {
+        alert(`❌ Błąd: ${error.message}`);
+    }
+}
+
+function editGroup(groupId) {
+    // Przekieruj do szczegółowej strony edycji grupy
+    window.location.href = `/substitutes/group/${groupId}/edit`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Zamknij modal po kliknięciu tła
+document.getElementById('create-group-modal').onclick = function(e) {
+    if (e.target === this) {
+        hideCreateGroupModal();
+    }
+}
+</script>
+
+<style>
+.btn {
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#new-group-search-results:empty {
+    display: none;
+}
+
+#new-group-search-results {
+    border: 1px solid #ddd;
+}
+
+#new-group-search-results > div:last-child {
+    border-bottom: none;
+}
+</style>
+
+{% endblock %}

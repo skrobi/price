@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Dodaj produkt z URL{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('products.products') }}" style="color: #007bff; text-decoration: none;">← Powrót do produktów</a>
+</div>
+
+<h1>Dodaj produkt z URL</h1>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin: 10px 0; color: #721c24;">
+            {% for message in messages %}
+                <div>{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<form method="POST">
+    <div style="margin: 20px 0;">
+        <label for="url"><strong>URL produktu:</strong></label><br>
+        <input type="url" id="url" name="url" required 
+               style="width: 500px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" 
+               placeholder="https://allegro.pl/oferta/...">
+    </div>
+    
+    <div style="margin: 20px 0;">
+        <button type="submit" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+            Dodaj produkt
+        </button>
+        <a href="{{ url_for('products.products') }}" 
+           style="background: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-left: 10px;">
+            Anuluj
+        </a>
+    </div>
+</form>
+
+<div style="background: #fff3cd; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #ffc107;">
+    <strong>Informacja:</strong> Ta funkcja jest w rozwoju. Obecnie pokazuje tylko sklep z URL.
+</div>
+
+{% endblock %}

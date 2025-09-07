@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block title %}Znajdź brakujące produkty{% endblock %}
+{% block content %}
+
+<h1>🔍 Znajdź brakujące produkty</h1>
+
+<p>System przeszuka sklepy w poszukiwaniu produktów które masz w bazie, ale nie dodałeś jeszcze linków z tych sklepów.</p>
+
+<!-- Wybór sklepu -->
+<div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #007bff;">
+    <h3 style="margin-top: 0;">🏪 Wybierz sklep do przeszukania</h3>
+    
+    <form id="search-form">
+        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 15px; align-items: end;">
+            <div>
+                <label for="shop_id"><strong>Sklep:</strong></label><br>
+                <select id="shop_id" name="shop_id" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">Wybierz sklep...</option>
+                    {% for shop in shops_with_search %}
+                    <option value="{{ shop.shop_id }}">{{ shop.name }} ({{ shop.shop_id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <button type="button" onclick="startSearch()" class="btn" style="background: #28a745; color: white;">
+                    🔍 Szukaj produktów
+                </button>
+            </div>
+            
+            <div>
+                <button type="button" onclick="testShopSearch()" class="btn" style="background: #17a2b8; color: white;">
+                    🧪 Test wyszukiwarki
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Status wyszukiwania -->
+<div id="search-status" style="display: none; margin: 20px 0;">
+    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
+        <div id="status-text">Przygotowanie...</div>
+        <div style="background: #f0f0f0; border-radius: 10px; padding: 3px; margin-top: 10px;">
+            <div id="progress-bar" style="background: #ffc107; height: 20px; border-radius: 7px; width: 0%; transition: width 0.3s;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Wyniki wyszukiwania -->
+<div id="search-results" style="display: none; margin: 20px 0;">
+    <h2>📋 Wyniki wyszukiwania</h2>
+    <div id="results-container"></div>
+</div>
+
+<!-- Szczegółowe logi -->
+<div id="debug-logs" style="display: none; margin: 20px 0;">
+    <details>
+        <summary style="cursor: pointer; color: #007bff; font-weight: bold;">🔧 Szczegółowe logi wyszukiwania</summary>
+        <div id="debug-content" style="margin-top: 10px; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f9f9f9; font-family: monospace; font-size: 0.85em;">
+        </div>
+    </details>
+</div>
+
+<script>
+let isSearching = false;
+let currentProductIndex = 0;
+let totalProducts = 0;
+let allResults = [];
+
+async function startSearch() {
+    if (isSearching) return;
+    
+    const shopId = document.getElementById('shop_id').value;
+    if (!shopId) {
+        alert('Wybierz sklep!');
+        return;
+    }
+    
+    isSearching = true;
+    document.getElementById('search-status').style.display = 'block';
+    document.getElementById('search-results').style.display = 'none';
+    document.getElementById('debug-logs').style.display = 'none';
+    
+    try {
+        // Pobierz listę produktów do wyszukania
+        const response = await fetch(`/find_products/${shopId}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Błąd: ' + data.error);
+            resetSearch();
+            return;
+        }
+        
+        const missingProducts = data.missing_products;
+        totalProducts = missingProducts.length;
+        
+        if (totalProducts === 0) {
+            document.getElementById('status-text').textContent = 'Wszystkie produkty są już dodane w tym sklepie!';
+            resetSearch();
+            return;
+        }
+        
+        allResults = [];
+        currentProductIndex = 0;
+        
+        updateProgress(0, `Rozpoczynam wyszukiwanie ${totalProducts} produktów...`);
+        
+        // Wyszukuj produkty jeden po drugim
+        for (const product of missingProducts) {
+            if (!isSearching) break;
+            
+            updateProgress(currentProductIndex, `Szukam: ${product.name}`);
+            
+            try {
+                const searchResponse = await fetch('/search_product', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shop_id: shopId,
+                        product_id: product.id,
+                        product_name: product.name,
+                        ean: product.ean
+                    })
+                });
+                
+                const searchResult = await searchResponse.json();
+                allResults.push({
+                    product: product,
+                    result: searchResult
+                });
+                
+                addDebugLog(`=== ${product.name} ===`);
+                if (searchResult.debug) {
+                    searchResult.debug.forEach(line => addDebugLog(line));
+                }
+                
+            } catch (error) {
+                allResults.push({
+                    product: product,
+                    result: { success: false, error: 'Błąd wyszukiwania: ' + error.message }
+                });
+                addDebugLog(`Błąd dla ${product.name}: ${error.message}`);
+            }
+            
+            currentProductIndex++;
+            
+            // Opóźnienie między wyszukiwaniami
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        updateProgress(totalProducts, 'Wyszukiwanie zakończone!');
+        displayResults();
+        
+    } catch (error) {
+        alert('Błąd: ' + error.message);
+    } finally {
+        resetSearch();
+    }
+}
+
+async function testShopSearch() {
+    const shopId = document.getElementById('shop_id').value;
+    if (!shopId) {
+        alert('Wybierz sklep!');
+        return;
+    }
+    
+    const testQuery = prompt('Wpisz frazę do przetestowania:', 'test');
+    if (!testQuery) return;
+    
+    try {
+        const response = await fetch('/test_shop_search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                shop_id: shopId,
+                query: testQuery
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            let message = `Znaleziono ${result.results.length} wyników:\n\n`;
+            result.results.slice(0, 5).forEach((item, i) => {
+                message += `${i+1}. ${item.title}\n   ${item.url}\n   Podobieństwo: ${item.similarity.toFixed(2)}\n\n`;
+            });
+            
+            alert(message);
+            
+            // Pokaż debug
+            if (result.debug) {
+                document.getElementById('debug-logs').style.display = 'block';
+                document.getElementById('debug-content').innerHTML = '';
+                result.debug.forEach(line => addDebugLog(line));
+            }
+        } else {
+            alert('Błąd testu: ' + result.error);
+        }
+        
+    } catch (error) {
+        alert('Błąd: ' + error.message);
+    }
+}
+
+function updateProgress(current, text) {
+    const percentage = totalProducts > 0 ? (current / totalProducts) * 100 : 0;
+    document.getElementById('progress-bar').style.width = percentage + '%';
+    document.getElementById('status-text').textContent = text;
+}
+
+function addDebugLog(message) {
+    const debugContent = document.getElementById('debug-content');
+    const div = document.createElement('div');
+    div.textContent = message;
+    div.style.margin = '1px 0';
+    debugContent.appendChild(div);
+    debugContent.scrollTop = debugContent.scrollHeight;
+}
+
+function displayResults() {
+    const container = document.getElementById('results-container');
+    document.getElementById('search-results').style.display = 'block';
+    document.getElementById('debug-logs').style.display = 'block';
+    
+    container.innerHTML = '';
+    
+    const foundProducts = allResults.filter(r => r.result.success && r.result.results && r.result.results.length > 0);
+    const notFoundProducts = allResults.filter(r => !r.result.success || !r.result.results || r.result.results.length === 0);
+    
+    if (foundProducts.length > 0) {
+        const foundSection = document.createElement('div');
+        foundSection.innerHTML = `
+            <h3 style="color: #28a745;">✅ Znaleziono produkty (${foundProducts.length})</h3>
+        `;
+        
+        foundProducts.forEach(item => {
+            const productDiv = document.createElement('div');
+            productDiv.style.cssText = 'background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; margin: 10px 0; border-radius: 8px;';
+            
+            const bestMatch = item.result.results[0];
+            
+            productDiv.innerHTML = `
+                <div style="display: flex; justify-content: between; align-items: center;">
+                    <div style="flex: 1;">
+                        <strong>${item.product.name}</strong><br>
+                        <small>Najlepsze dopasowanie (${(bestMatch.similarity * 100).toFixed(1)}%): <strong>${bestMatch.title}</strong></small>
+                    </div>
+                    <div>
+                        <button onclick="addProductLink(${item.product.id}, '${bestMatch.url}', '${bestMatch.title}')" 
+                                class="btn" style="background: #28a745; color: white;">
+                            ➕ Dodaj link
+                        </button>
+                        <a href="${bestMatch.url}" target="_blank" class="btn" style="background: #17a2b8; color: white;">
+                            👁️ Zobacz
+                        </a>
+                    </div>
+                </div>
+                
+                ${item.result.results.length > 1 ? `
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; color: #007bff;">Inne wyniki (${item.result.results.length - 1})</summary>
+                        <div style="margin-top: 10px;">
+                            ${item.result.results.slice(1, 6).map(r => `
+                                <div style="padding: 8px; border-bottom: 1px solid #c3e6cb; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>${r.title}</strong><br>
+                                        <small>Podobieństwo: ${(r.similarity * 100).toFixed(1)}%</small>
+                                    </div>
+                                    <div>
+                                        <button onclick="addProductLink(${item.product.id}, '${r.url}', '${r.title}')" 
+                                                class="btn" style="background: #28a745; color: white; font-size: 0.8em;">
+                                            ➕
+                                        </button>
+                                        <a href="${r.url}" target="_blank" class="btn" style="background: #17a2b8; color: white; font-size: 0.8em;">
+                                            👁️
+                                        </a>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </details>
+                ` : ''}
+            `;
+            
+            foundSection.appendChild(productDiv);
+        });
+        
+        container.appendChild(foundSection);
+    }
+    
+    if (notFoundProducts.length > 0) {
+        const notFoundSection = document.createElement('div');
+        notFoundSection.innerHTML = `
+            <h3 style="color: #dc3545;">❌ Nie znaleziono (${notFoundProducts.length})</h3>
+        `;
+        
+        notFoundProducts.forEach(item => {
+            const productDiv = document.createElement('div');
+            productDiv.style.cssText = 'background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin: 10px 0; border-radius: 8px;';
+            
+            productDiv.innerHTML = `
+                <div><strong>${item.product.name}</strong></div>
+                <small style="color: #721c24;">${item.result.error || 'Brak wyników wyszukiwania'}</small>
+            `;
+            
+            notFoundSection.appendChild(productDiv);
+        });
+        
+        container.appendChild(notFoundSection);
+    }
+}
+
+async function addProductLink(productId, url, title) {
+    try {
+        const shopId = document.getElementById('shop_id').value;
+        
+        const response = await fetch('/add_found_link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: productId,
+                shop_id: shopId,
+                url: url,
+                title: title
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Link został dodany!');
+            // Ukryj przycisk
+            event.target.style.display = 'none';
+            event.target.parentElement.innerHTML += '<span style="color: #28a745;">✅ Dodano</span>';
+        } else {
+            alert('❌ Błąd: ' + result.error);
+        }
+        
+    } catch (error) {
+        alert('❌ Błąd: ' + error.message);
+    }
+}
+
+function resetSearch() {
+    isSearching = false;
+    setTimeout(() => {
+        document.getElementById('search-status').style.display = 'none';
+    }, 3000);
+}
+</script>
+
+{% endblock %}

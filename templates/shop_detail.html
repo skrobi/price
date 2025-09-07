@@ -1,0 +1,523 @@
+{% extends "base.html" %}
+{% block title %}Sklep: {{ shop.name }}{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('shops.shops') }}" style="color: #007bff; text-decoration: none;">← Powrót do sklepów</a>
+</div>
+
+<div style="display: flex; align-items: center; gap: 15px; margin-bottom: 30px;">
+    <h1 style="margin: 0;">🏪 {{ shop.name }}</h1>
+    <span style="background: {% if shop.active %}#28a745{% else %}#6c757d{% endif %}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em;">
+        {% if shop.active %}Aktywny{% else %}Nieaktywny{% endif %}
+    </span>
+</div>
+
+<!-- Podstawowe informacje -->
+<div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #007bff;">
+    <h3 style="margin-top: 0; color: #007bff;">📋 Podstawowe informacje</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <div>
+            <strong>ID Sklepu:</strong><br>
+            <code style="background: #e9ecef; padding: 2px 6px; border-radius: 4px;">{{ shop.shop_id }}</code>
+        </div>
+        <div>
+            <strong>Nazwa:</strong><br>
+            {{ shop.name }}
+        </div>
+        <div>
+            <strong>Waluta:</strong><br>
+            <span style="font-weight: bold; color: #28a745;">{{ shop.currency }}</span>
+        </div>
+        <div>
+            <strong>Selektorów cen:</strong><br>
+            <span style="background: #e7f3ff; color: #0066cc; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{{ shop.price_selectors|length }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Sekcja dostaw -->
+<div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #28a745;">
+    <h3 style="margin-top: 0; color: #28a745;">🚚 Ustawienia dostawy</h3>
+    {% if shop.delivery_free_from or shop.delivery_cost %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+            {% if shop.delivery_free_from %}
+            <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #d4edda;">
+                <div style="color: #28a745; font-weight: bold; margin-bottom: 5px;">🆓 Darmowa dostawa od:</div>
+                <div style="font-size: 1.2em; font-weight: bold;">{{ shop.delivery_free_from }} {{ shop.currency }}</div>
+            </div>
+            {% endif %}
+            {% if shop.delivery_cost %}
+            <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ffeaa7;">
+                <div style="color: #e17000; font-weight: bold; margin-bottom: 5px;">💰 Koszt dostawy:</div>
+                <div style="font-size: 1.2em; font-weight: bold;">{{ shop.delivery_cost }} {{ shop.currency }}</div>
+            </div>
+            {% endif %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 20px; color: #666; font-style: italic;">
+            Ustawienia dostawy nie zostały skonfigurowane
+        </div>
+    {% endif %}
+</div>
+
+<!-- Selektory CSS -->
+<div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #6f42c1;">
+    <h3 style="margin-top: 0; color: #6f42c1;">🎯 Selektory CSS dla cen</h3>
+    {% if shop.price_selectors %}
+        <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
+            {% if shop.price_selectors is mapping %}
+                <!-- Nowy format z podziałem na promo/regular -->
+                {% if shop.price_selectors.promo %}
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #e74c3c; margin-bottom: 10px;">🏷️ Selektory promocyjne ({{ shop.price_selectors.promo|length }})</h4>
+                    <div style="font-family: monospace; font-size: 0.9em;">
+                        {% for selector in shop.price_selectors.promo %}
+                            <div style="margin: 5px 0; padding: 8px; background: #fff5f5; border-left: 3px solid #e74c3c; border-radius: 4px;">
+                                <span style="color: #666; font-weight: bold;">{{ loop.index }}.</span>
+                                <code style="color: #e74c3c;">{{ selector }}</code>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if shop.price_selectors.regular %}
+                <div>
+                    <h4 style="color: #3498db; margin-bottom: 10px;">💰 Selektory regularne ({{ shop.price_selectors.regular|length }})</h4>
+                    <div style="font-family: monospace; font-size: 0.9em;">
+                        {% for selector in shop.price_selectors.regular %}
+                            <div style="margin: 5px 0; padding: 8px; background: #f0f8ff; border-left: 3px solid #3498db; border-radius: 4px;">
+                                <span style="color: #666; font-weight: bold;">{{ loop.index }}.</span>
+                                <code style="color: #3498db;">{{ selector }}</code>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <!-- Stary format - lista selektorów -->
+                <div style="font-family: monospace; font-size: 0.9em;">
+                    {% for selector in shop.price_selectors %}
+                        <div style="margin: 5px 0; padding: 8px; background: #f8f9fa; border-left: 3px solid #6f42c1; border-radius: 4px;">
+                            <span style="color: #666; font-weight: bold;">{{ loop.index }}.</span>
+                            <code style="color: #6f42c1;">{{ selector }}</code>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 20px; color: #666; font-style: italic; background: white; border-radius: 8px; border: 1px solid #e9ecef;">
+            Brak skonfigurowanych selektorów - używane będą domyślne
+        </div>
+    {% endif %}
+</div>
+
+<!-- Sekcja produktów -->
+<div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #28a745;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #28a745;">📦 Produkty w tym sklepie</h3>
+        <button onclick="showAddProductToShopModal()" class="btn" style="background: #28a745;">
+            ➕ Dodaj produkt do tego sklepu
+        </button>
+    </div>
+    
+    {% if shop_products %}
+        <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
+            <p style="margin-top: 0;"><strong>Liczba produktów: {{ shop_products|length }}</strong></p>
+            
+            <div style="max-height: 300px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Produkt</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Ostatnia cena</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">URL</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Dodano</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in shop_products %}
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">
+                                <a href="{{ url_for('products.product_detail', product_id=product.product_id) }}" 
+                                   style="color: #007bff; text-decoration: none; font-weight: bold;">
+                                    {{ product.product_name }}
+                                </a>
+                            </td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">
+                                {% if product.latest_price %}
+                                    <span style="color: #28a745; font-weight: bold;">
+                                        {{ "%.2f"|format(product.latest_price) }} {{ product.currency or 'PLN' }}
+                                    </span>
+                                    {% if product.price_updated %}
+                                        <br><small style="color: #666;">{{ product.price_updated[:10] }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <em style="color: #999;">Brak ceny</em>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">
+                                <a href="{{ product.url }}" target="_blank" style="color: #007bff; font-size: 0.85em;">
+                                    {{ product.url[:30] }}{% if product.url|length > 30 %}...{% endif %}
+                                </a>
+                            </td>
+                            <td style="padding: 8px; border: 1px solid #ddd; font-size: 0.85em; color: #666;">
+                                {{ product.created[:10] }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 20px; color: #666; font-style: italic; background: white; border-radius: 8px; border: 1px solid #e9ecef;">
+            Brak produktów w tym sklepie - kliknij przycisk powyżej aby dodać pierwszy
+        </div>
+    {% endif %}
+</div>
+
+<!-- Konfiguracja wyszukiwania -->
+<div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 4px solid #fd7e14;">
+    <h3 style="margin-top: 0; color: #fd7e14;">🔍 Konfiguracja wyszukiwania</h3>
+    {% if shop.search_config and shop.search_config.search_url %}
+        <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
+            <div style="margin-bottom: 15px;">
+                <strong style="color: #fd7e14;">URL wyszukiwarki:</strong><br>
+                <code style="background: #fff3e0; padding: 6px 10px; border-radius: 4px; display: inline-block; margin-top: 5px; word-break: break-all;">{{ shop.search_config.search_url }}</code>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div>
+                    <strong style="color: #fd7e14;">Selektory wyników ({{ shop.search_config.result_selectors|length }}):</strong>
+                    <div style="margin-top: 8px; font-family: monospace; font-size: 0.85em;">
+                        {% for selector in shop.search_config.result_selectors %}
+                            <div style="padding: 4px 8px; margin: 2px 0; background: #fff3e0; border-radius: 4px;">
+                                <code>{{ selector }}</code>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div>
+                    <strong style="color: #fd7e14;">Selektory tytułów ({{ shop.search_config.title_selectors|length }}):</strong>
+                    <div style="margin-top: 8px; font-family: monospace; font-size: 0.85em;">
+                        {% for selector in shop.search_config.title_selectors %}
+                            <div style="padding: 4px 8px; margin: 2px 0; background: #fff3e0; border-radius: 4px;">
+                                <code>{{ selector }}</code>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <strong style="color: #fd7e14;">Metody wyszukiwania:</strong>
+                <div style="margin-top: 5px;">
+                    {% for method in shop.search_config.search_methods %}
+                        <span style="background: #fd7e14; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-right: 8px;">
+                            {% if method == 'name' %}📝 Nazwa{% elif method == 'ean' %}🔢 EAN{% else %}{{ method }}{% endif %}
+                        </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 20px; color: #666; font-style: italic; background: white; border-radius: 8px; border: 1px solid #e9ecef;">
+            Wyszukiwanie nie zostało skonfigurowane
+        </div>
+    {% endif %}
+</div>
+
+<!-- Przyciski akcji -->
+<div style="margin: 30px 0; text-align: center;">
+    <a href="{{ url_for('shops.edit_shop', shop_id=shop.shop_id) }}" 
+       class="btn" style="background: #ffc107; color: #000; margin: 5px; font-size: 1.1em; padding: 12px 24px;">
+        ✏️ Edytuj konfigurację
+    </a>
+    
+    <button onclick="testSearchConfig()" 
+            class="btn" style="background: #17a2b8; margin: 5px; font-size: 1.1em; padding: 12px 24px;">
+        🧪 Testuj wyszukiwanie
+    </button>
+    
+    <a href="{{ url_for('shops.shops') }}" 
+       class="btn" style="background: #6c757d; margin: 5px; font-size: 1.1em; padding: 12px 24px;">
+        ← Powrót do listy
+    </a>
+</div>
+
+<!-- Modal dodawania produktu do sklepu -->
+<div id="add-product-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background: white; margin: 30px auto; padding: 20px; border-radius: 8px; max-width: 700px; max-height: 90%; overflow-y: auto;">
+        <h3>➕ Dodaj produkt do sklepu: {{ shop.name }}</h3>
+        
+        <!-- Wyszukiwarka produktów -->
+        <div style="margin: 15px 0;">
+            <label><strong>Znajdź produkt:</strong></label><br>
+            <input type="text" id="product-search-modal" placeholder="Szukaj produktów..." 
+                   style="width: 70%; padding: 8px; margin: 5px 0;" 
+                   oninput="filterAvailableProducts()">
+            <button onclick="searchProductInThisShop()" class="btn" style="background: #17a2b8; margin-left: 5px;">
+                🔍 Wyszukaj automatycznie
+            </button>
+        </div>
+        
+        <div id="available-products-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px;">
+            <!-- Produkty będą ładowane przez JavaScript -->
+        </div>
+        
+        <div id="auto-search-results" style="display: none; margin: 15px 0;">
+            <h4>Wyniki automatycznego wyszukiwania:</h4>
+            <div id="auto-search-list"></div>
+        </div>
+        
+        <div style="text-align: right; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+            <button onclick="hideAddProductModal()" class="btn" style="background: #6c757d;">Zamknij</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const SHOP_ID = '{{ shop.shop_id }}';
+let availableProducts = [];
+let selectedProductForSearch = null;
+
+function testSearchConfig() {
+    // W przyszłości tutaj będzie AJAX test wyszukiwania
+    alert('🧪 Funkcja testowania wyszukiwania - w rozwoju');
+}
+
+async function showAddProductToShopModal() {
+    try {
+        // Pobierz produkty które nie są jeszcze w tym sklepie
+        const response = await fetch(`/get_products_not_in_shop/${SHOP_ID}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Błąd: ' + data.error);
+            return;
+        }
+        
+        availableProducts = data.products;
+        
+        if (availableProducts.length === 0) {
+            alert('Wszystkie produkty są już dodane do tego sklepu!');
+            return;
+        }
+        
+        displayAvailableProducts(availableProducts);
+        document.getElementById('add-product-modal').style.display = 'block';
+        
+    } catch (error) {
+        console.error('Błąd przy ładowaniu produktów:', error);
+        alert('Błąd: ' + error.message);
+    }
+}
+
+function hideAddProductModal() {
+    document.getElementById('add-product-modal').style.display = 'none';
+    document.getElementById('auto-search-results').style.display = 'none';
+    selectedProductForSearch = null;
+}
+
+function displayAvailableProducts(products) {
+    const productsList = document.getElementById('available-products-list');
+    
+    if (products.length === 0) {
+        productsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Brak dostępnych produktów</div>';
+        return;
+    }
+    
+    let html = '';
+    products.forEach(product => {
+        html += `
+            <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                <div style="flex: 1;">
+                    <strong>${escapeHtml(product.name)}</strong><br>
+                    <small style="color: #666;">ID: ${product.id} | Dodano: ${product.created.substring(0, 10)}</small>
+                    ${product.ean ? `<br><small style="color: #28a745;">EAN: ${product.ean}</small>` : ''}
+                </div>
+                <div style="min-width: 200px; text-align: right;">
+                    <button onclick="selectProductForSearch(${product.id}, '${escapeHtml(product.name)}')" 
+                            class="btn" style="background: #17a2b8; font-size: 0.9em; margin-right: 5px;">
+                        🔍 Wyszukaj
+                    </button>
+                    <button onclick="addProductManually(${product.id}, '${escapeHtml(product.name)}')" 
+                            class="btn" style="background: #ffc107; color: #000; font-size: 0.9em;">
+                        ✏️ Ręcznie
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    productsList.innerHTML = html;
+}
+
+function filterAvailableProducts() {
+    const searchTerm = document.getElementById('product-search-modal').value.toLowerCase();
+    const filteredProducts = availableProducts.filter(product => 
+        product.name.toLowerCase().includes(searchTerm)
+    );
+    displayAvailableProducts(filteredProducts);
+}
+
+function selectProductForSearch(productId, productName) {
+    selectedProductForSearch = { id: productId, name: productName };
+    searchProductInThisShop();
+}
+
+async function searchProductInThisShop() {
+    if (!selectedProductForSearch) {
+        const searchTerm = document.getElementById('product-search-modal').value.trim();
+        if (!searchTerm) {
+            alert('Wybierz produkt lub wpisz nazwę do wyszukania');
+            return;
+        }
+        // Użyj wyszukiwania tekstowego
+        selectedProductForSearch = { name: searchTerm };
+    }
+    
+    try {
+        const searchData = {
+            shop_id: SHOP_ID
+        };
+        
+        if (selectedProductForSearch.id) {
+            searchData.product_id = selectedProductForSearch.id;
+        } else {
+            searchData.product_name = selectedProductForSearch.name;
+        }
+        
+        const response = await fetch('/search_product_in_shop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(searchData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.results && result.results.length > 0) {
+            displayAutoSearchResults(result.results);
+        } else {
+            const resultsDiv = document.getElementById('auto-search-results');
+            const resultsList = document.getElementById('auto-search-list');
+            resultsList.innerHTML = `<div style="padding: 15px; text-align: center; color: #666;">Nie znaleziono produktu "${selectedProductForSearch.name}" w sklepie ${SHOP_ID}</div>`;
+            resultsDiv.style.display = 'block';
+        }
+        
+    } catch (error) {
+        alert('Błąd wyszukiwania: ' + error.message);
+    }
+}
+
+function displayAutoSearchResults(results) {
+    const resultsDiv = document.getElementById('auto-search-results');
+    const resultsList = document.getElementById('auto-search-list');
+    
+    let html = '';
+    results.slice(0, 5).forEach((result, index) => {
+        const similarity = (result.similarity * 100).toFixed(1);
+        html += `
+            <div style="padding: 10px; border: 1px solid #d4edda; margin: 5px 0; border-radius: 4px; background: #f8f9fa;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <strong>${escapeHtml(result.title)}</strong><br>
+                        <small style="color: #666;">Podobieństwo: ${similarity}%</small>
+                    </div>
+                    <div>
+                        <button onclick="addFoundLinkToShop(${selectedProductForSearch.id || 'null'}, '${escapeHtml(result.url)}', '${escapeHtml(result.title)}')" 
+                                class="btn" style="background: #28a745; font-size: 0.9em;">
+                            ➕ Dodaj
+                        </button>
+                        <a href="${escapeHtml(result.url)}" target="_blank" class="btn" style="background: #17a2b8; font-size: 0.9em; margin-left: 5px;">
+                            👁️
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsList.innerHTML = html;
+    resultsDiv.style.display = 'block';
+}
+
+async function addProductManually(productId, productName) {
+    const url = prompt(`Podaj URL produktu "${productName}" w sklepie ${SHOP_ID}:`);
+    if (!url) return;
+    
+    await addFoundLinkToShop(productId, url, productName);
+}
+
+async function addFoundLinkToShop(productId, url, title) {
+    try {
+        const response = await fetch('/add_found_link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: productId,
+                shop_id: SHOP_ID,
+                url: url,
+                title: title
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Produkt został dodany do sklepu!');
+            window.location.reload(); // Odśwież stronę
+        } else {
+            alert('❌ Błąd: ' + result.error);
+        }
+        
+    } catch (error) {
+        alert('❌ Błąd: ' + error.message);
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text.toString();
+    return div.innerHTML;
+}
+
+// Zamknij modal po kliknięciu tła
+document.getElementById('add-product-modal').onclick = function(e) {
+    if (e.target === this) {
+        hideAddProductModal();
+    }
+}
+</script>
+
+<style>
+.btn {
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+</style>
+
+{% endblock %}

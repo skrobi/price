@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Wyniki Pobierania Cen{% endblock %}
+{% block content %}
+<h1>Wyniki Pobierania Cen</h1>
+
+<div style="background: #f8f9fa; padding: 15px; margin: 15px 0; border-radius: 5px;">
+    <strong>Podsumowanie:</strong><br>
+    ✅ Sukces: {{ success_count }}<br>
+    ❌ Błędy: {{ error_count }}
+</div>
+
+<h2>Szczegóły:</h2>
+<div style="font-family: monospace; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+    {% for result in results %}
+        <div style="margin: 5px 0;">{{ result }}</div>
+    {% endfor %}
+</div>
+
+<div style="margin: 20px 0;">
+    <a href="{{ url_for('prices') }}" class="btn">📊 Zobacz historię cen</a>
+    <a href="{{ url_for('products') }}" class="btn" style="background: #6c757d;">← Powrót do produktów</a>
+</div>
+
+{% endblock %}

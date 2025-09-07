@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>System Monitorowania Cen i Optymalizacji Koszyka</h1>
+
+<div style="margin: 20px 0;">
+    <h2>Funkcjonalności:</h2>
+    <ul>
+        <li><strong>Produkty</strong> - dodawaj i zarządzaj produktami (nazwa, EAN)</li>
+        <li><strong>Sklepy</strong> - konfiguruj sklepy internetowe (warunki dostawy, parsery)</li>
+        <li><strong>Linki</strong> - przypisuj URLe produktów do sklepów</li>
+        <li><strong>Koszyk</strong> - buduj koszyk i znajdź najlepszą kombinację zakupów</li>
+        <li><strong>Ceny</strong> - pobieraj ceny i przeglądaj historię</li>
+    </ul>
+</div>
+
+<div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+    <h3>Status systemu:</h3>
+    <p>📁 Folder data: <span id="data-status">sprawdzanie...</span></p>
+    <p>📦 Produkty: <span id="products-count">0</span></p>
+    <p>🏪 Sklepy: <span id="shops-count">0</span></p>
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('products.products') }}" class="btn">Zacznij od dodania produktów</a>
+    <a href="{{ url_for('shops.shops') }}" class="btn">Skonfiguruj sklepy</a>
+</div>
+
+<script>
+// Prosta aktualizacja statusu - na razie statyczna
+document.getElementById('data-status').textContent = 'OK';
+</script>
+{% endblock %}

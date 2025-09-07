@@ -1,0 +1,469 @@
+/* Styles dla strony szczegółów produktu */
+
+/* Animacje */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes pulse {
+    0% { background-color: #f8f9fa; }
+    50% { background-color: #e9ecef; }
+    100% { background-color: #f8f9fa; }
+}
+
+/* Komponenty */
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #007bff;
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-left: 8px;
+}
+
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #28a745;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 10000;
+    font-weight: bold;
+    max-width: 300px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.notification.error {
+    background: #dc3545;
+}
+
+.notification.warning {
+    background: #ffc107;
+    color: #000;
+}
+
+.notification.info {
+    background: #17a2b8;
+}
+
+/* Przyciski */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-fetch-price {
+    transition: all 0.2s ease;
+}
+
+.btn-fetch-price:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-fetch-price:active {
+    transform: translateY(0);
+}
+
+/* Sekcje produktu */
+.product-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.product-info {
+    background: #f8f9fa;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+}
+
+.product-actions {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Linki sklepów */
+.shop-links-container {
+    margin: 30px 0;
+}
+
+.shop-link-item {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin: 15px 0;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+
+.shop-link-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.shop-link-content {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 15px;
+}
+
+.shop-link-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.shop-link-name {
+    color: #495057;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+}
+
+.shop-link-url {
+    margin: 8px 0;
+}
+
+.shop-link-url a {
+    color: #007bff;
+    text-decoration: none;
+    word-break: break-all;
+    font-size: 0.9em;
+}
+
+.shop-link-url a:hover {
+    text-decoration: underline;
+}
+
+.shop-link-meta {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.shop-link-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 120px;
+}
+
+.price-badge {
+    background: #28a745;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    display: inline-block;
+}
+
+.price-badge.no-price {
+    background: #6c757d;
+}
+
+.currency-info {
+    color: #666;
+    font-size: 0.9em;
+    margin-left: 8px;
+}
+
+/* Status wyszukiwania */
+.search-status {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.search-results {
+    margin: 20px 0;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.shop-result {
+    border: 1px solid #28a745;
+    margin: 15px 0;
+    padding: 15px;
+    border-radius: 8px;
+    background: #f8fff8;
+}
+
+.shop-result h5 {
+    margin-top: 0;
+    color: #28a745;
+    border-bottom: 1px solid #c3e6cb;
+    padding-bottom: 8px;
+}
+
+.product-match {
+    border: 1px solid #28a745;
+    margin: 8px 0;
+    padding: 10px;
+    border-radius: 4px;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.product-match:hover {
+    background: #f8fff8;
+}
+
+.product-match.added {
+    background: #d4edda;
+    animation: pulse 2s ease-in-out;
+}
+
+.match-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+.match-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.match-title {
+    font-weight: bold;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.match-similarity {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.match-actions {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+/* Modały */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease-out;
+}
+
+.modal-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.modal-body {
+    margin: 20px 0;
+}
+
+.modal-footer {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+
+.modal-footer .btn {
+    margin-left: 10px;
+}
+
+/* Formularze w modalach */
+.form-group {
+    margin: 20px 0;
+}
+
+.form-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.form-row {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+}
+
+.form-row .form-group {
+    flex: 1;
+    margin: 0;
+}
+
+/* Alerty i błędy */
+.error-box {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+    border: 1px solid #f5c6cb;
+}
+
+.warning-box {
+    background: #fff3cd;
+    color: #856404;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+    border: 1px solid #ffeaa7;
+}
+
+.info-box {
+    background: #d1ecf1;
+    color: #0c5460;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+    border: 1px solid #bee5eb;
+}
+
+/* Responsywność */
+@media (max-width: 768px) {
+    .product-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .product-actions {
+        flex-direction: column;
+    }
+    
+    .shop-link-content {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .shop-link-actions {
+        flex-direction: row;
+        min-width: auto;
+    }
+    
+    .match-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .match-actions {
+        justify-content: center;
+    }
+    
+    .modal-content {
+        margin: 20px;
+        width: calc(100% - 40px);
+    }
+    
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .form-row .form-group {
+        margin: 10px 0;
+    }
+}
+
+/* Stany ładowania */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.loading-text {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Hover efekty */
+.shop-link-item:hover .shop-link-name {
+    color: #007bff;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    transition: transform 0.1s ease;
+}
+
+.btn:active {
+    transform: translateY(0);
+}

@@ -1,0 +1,346 @@
+/* static/styles.css - Główny plik stylów dla systemu monitorowania cen */
+
+/* Podstawowe style */
+body { 
+    font-family: Arial, sans-serif; 
+    margin: 20px; 
+    background-color: #f8f9fa;
+    line-height: 1.6;
+}
+
+/* Nawigacja */
+.nav { 
+    background: #343a40; 
+    padding: 15px; 
+    margin-bottom: 20px; 
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.nav a { 
+    margin-right: 20px; 
+    text-decoration: none; 
+    color: #fff; 
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.nav a:hover { 
+    background-color: #495057;
+}
+
+/* Kontener główny */
+.container { 
+    max-width: 1400px; 
+    margin: 0 auto;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* Tabele */
+table { 
+    border-collapse: collapse; 
+    width: 100%; 
+    margin-top: 15px;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+th, td { 
+    border: 1px solid #dee2e6; 
+    padding: 12px 8px; 
+    text-align: left; 
+}
+
+th { 
+    background-color: #495057; 
+    color: white;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+tr:hover {
+    background-color: #e9ecef;
+}
+
+/* Przyciski */
+.btn { 
+    padding: 10px 16px; 
+    margin: 5px; 
+    text-decoration: none; 
+    background: #007bff; 
+    color: white; 
+    border: none; 
+    cursor: pointer; 
+    border-radius: 5px;
+    display: inline-block;
+    transition: all 0.3s;
+    font-size: 14px;
+}
+
+.btn:hover { 
+    background: #0056b3; 
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+}
+
+.btn-success { background: #28a745; }
+.btn-success:hover { background: #218838; }
+
+.btn-danger { background: #dc3545; }
+.btn-danger:hover { background: #c82333; }
+
+.btn-secondary { background: #6c757d; }
+.btn-secondary:hover { background: #5a6268; }
+
+/* Formularze */
+input, textarea, select { 
+    padding: 8px 12px; 
+    margin: 5px; 
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    transition: border-color 0.3s;
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.form-group { 
+    margin: 15px 0; 
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Paginacja */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 30px 0;
+    gap: 5px;
+}
+
+.pagination a, .pagination span {
+    padding: 8px 12px;
+    margin: 0 2px;
+    text-decoration: none;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    color: #007bff;
+    transition: all 0.3s;
+}
+
+.pagination a:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.pagination .current {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+    font-weight: bold;
+}
+
+.pagination .disabled {
+    color: #6c757d;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    text-align: center;
+    margin: 15px 0;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+/* Filtry i wyszukiwanie */
+.filters-container {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.filters-row {
+    display: flex;
+    gap: 15px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 150px;
+}
+
+.filter-group label {
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.search-input {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    width: 250px;
+}
+
+.clear-filters {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    height: fit-content;
+}
+
+/* Komunikaty */
+.alert {
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 5px;
+    font-weight: 500;
+}
+
+.alert-success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.alert-danger {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.alert-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+/* Responsywność */
+@media (max-width: 768px) {
+    .container {
+        margin: 10px;
+        padding: 15px;
+    }
+    
+    .nav {
+        padding: 10px;
+    }
+    
+    .nav a {
+        display: block;
+        margin: 5px 0;
+    }
+    
+    table {
+        font-size: 12px;
+    }
+    
+    th, td {
+        padding: 8px 4px;
+    }
+    
+    .filters-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .pagination {
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+}
+
+/* Style specjalne dla prices */
+.prices-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.results-info {
+    background: #e7f3ff;
+    padding: 10px 15px;
+    border-radius: 5px;
+    color: #0066cc;
+    font-weight: 600;
+}
+
+/* Progress bar dla AJAX fetch */
+#progress-container {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+#progress-bar {
+    height: 25px;
+    border-radius: 7px;
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+#live-results {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+#results-list {
+    max-height: 400px;
+    overflow-y: auto;
+    background: white;
+    padding: 15px;
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* Utilities */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-muted { color: #6c757d; }
+.font-weight-bold { font-weight: bold; }
+.mb-0 { margin-bottom: 0; }
+.mt-3 { margin-top: 1rem; }
+.mb-3 { margin-bottom: 1rem; }
