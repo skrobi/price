@@ -1,0 +1,170 @@
+<!-- sync_status.html - Komponent UI dla statusu synchronizacji -->
+<div id="sync-status-container" class="sync-status-container">
+    <!-- Status indicator -->
+    <div id="sync-status-indicator" class="sync-indicator" data-status="unknown">
+        <span class="sync-icon">🔄</span>
+        <span class="sync-text">Sprawdzanie...</span>
+        <span class="sync-details"></span>
+    </div>
+    
+    <!-- Progress bar (ukryty domyślnie) -->
+    <div id="sync-progress" class="sync-progress" style="display: none;">
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="progress-text">
+            <span id="progress-operation">Initializing...</span>
+            <span id="progress-percent">0%</span>
+        </div>
+    </div>
+    
+    <!-- Sync controls -->
+    <div class="sync-controls">
+        <button id="sync-trigger-btn" class="btn btn-sm btn-primary" style="display: none;">
+            <span class="btn-icon">🔄</span>
+            Synchronizuj teraz
+        </button>
+        
+        <button id="sync-queue-btn" class="btn btn-sm btn-secondary" style="display: none;">
+            <span class="btn-icon">📋</span>
+            Kolejka (<span id="queue-count">0</span>)
+        </button>
+        
+        <div class="sync-dropdown" style="display: none;">
+            <button class="btn btn-sm btn-light dropdown-toggle" data-toggle="dropdown">
+                <span class="btn-icon">⚙️</span>
+            </button>
+            <div class="dropdown-menu dropdown-menu-right">
+                <a class="dropdown-item" href="#" id="sync-recovery-btn">
+                    <span class="item-icon">🔧</span>
+                    Odzyskiwanie błędów
+                </a>
+                <a class="dropdown-item" href="#" id="sync-reset-btn">
+                    <span class="item-icon">🔄</span>
+                    Reset stanu
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" id="sync-debug-btn">
+                    <span class="item-icon">🐛</span>
+                    Informacje debug
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal dla szczegółów sync'u -->
+<div class="modal fade" id="sync-details-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Szczegóły synchronizacji</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="sync-details-content">
+                    <!-- Treść będzie wstawiona dynamicznie -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Zamknij</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* CSS dla komponentu synchronizacji */
+.sync-status-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-left: 4px solid #gray;
+    transition: all 0.3s ease;
+}
+
+.sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.sync-indicator[data-status="synced"] {
+    border-left-color: #28a745;
+}
+
+.sync-indicator[data-status="syncing"] {
+    border-left-color: #007bff;
+}
+
+.sync-indicator[data-status="error"] {
+    border-left-color: #dc3545;
+}
+
+.sync-indicator[data-status="offline"] {
+    border-left-color: #6c757d;
+}
+
+.sync-indicator[data-status="warning"] {
+    border-left-color: #ffc107;
+}
+
+.sync-icon {
+    font-size: 16px;
+    animation: none;
+}
+
+.sync-indicator[data-status="syncing"] .sync-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.sync-text {
+    font-weight: 500;
+    color: #333;
+}
+
+.sync-details {
+    font-size: 12px;
+    color: #666;
+    margin-left: 4px;
+}
+
+.sync-progress {
+    min-width: 200px;
+    margin: 0 10px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #e9ecef;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #007bff, #0056b3);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #666;
+    }
