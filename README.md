@@ -20,7 +20,7 @@
 
 ```bash
 # Sklonuj repozytorium
-git clone https://github.com/username/price-tracker.git
+git clone https://github.com/skrobi/price.git
 cd price-tracker
 
 # Zainstaluj zależności
@@ -106,7 +106,7 @@ Każdy sklep wymaga konfiguracji selektorów CSS:
 }
 ```
 
-## 📊 Demo działania
+## 📊 Przykład działania
 
 ```bash
 🛒 KOSZYK: iPhone 15, Klawiatura, Mysz (3 produkty)
@@ -127,7 +127,7 @@ Każdy sklep wymaga konfiguracji selektorów CSS:
 
 ## 🤝 Wkład w rozwój
 
-Projekt otwarty na współpracę! 
+Projekt otwarty na współpracę!  Dodawanie produktów i pobieranie cen leci do bazy głównej poprzez API, można korzystac z zebranych danych.
 
 ```bash
 # Fork → Clone → Branch → Commit → Push → Pull Request
