@@ -1,1 +1,0 @@
-{"group_id": "group_1_1757062275", "name": "Rutinoskorbin", "created": "2025-09-05T10:51:15.761180", "updated": "2025-09-05T10:51:15.761180", "product_ids": [6, 9], "priority_map": {"6": 1, "9": 1}, "settings": {"max_price_increase_percent": 20.0, "min_quantity_ratio": 0.8, "max_quantity_ratio": 1.5, "allow_automatic_substitution": true}}

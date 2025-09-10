@@ -1,6 +1,5 @@
 /**
- * JavaScript dla strony zarządzania cenami
- * Adaptowany z product_detail.js
+ * JavaScript dla strony zarządzania cenami - NAPRAWIONY
  */
 
 // Globalne zmienne
@@ -32,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ==========================================
-// STYLE I ANIMACJE (z product_detail.js)
+// STYLE I ANIMACJE
 // ==========================================
 
 function addAnimationStyles() {
@@ -93,6 +92,10 @@ function addAnimationStyles() {
             background: #d4edda !important;
             border: 2px solid #28a745;
         }
+        .new-row {
+            background: #e7f3ff !important;
+            border: 2px solid #007bff;
+        }
     `;
     document.head.appendChild(style);
 }
@@ -115,66 +118,87 @@ function showNotification(message, type = 'success') {
     }, 5000);
 }
 
-function showSpinner(buttonElement) {
-    const spinner = document.createElement('span');
-    spinner.className = 'spinner';
-    buttonElement.appendChild(spinner);
-    buttonElement.classList.add('btn-loading');
-}
-
-function hideSpinner(buttonElement) {
-    const spinner = buttonElement.querySelector('.spinner');
-    if (spinner) {
-        spinner.remove();
-    }
-    buttonElement.classList.remove('btn-loading');
-}
-
 // ==========================================
-// DODAWANIE WIERSZY DO TABELI
+// DODAWANIE WIERSZY DO TABELI - NAPRAWIONE
 // ==========================================
 
 function addToTable(result) {
     const tbody = document.getElementById('prices-table');
-    if (!tbody) return;
-    
-    const row = document.createElement('tr');
-    
-    if (result.success) {
-        // Wiersz z sukcesem
-        row.className = 'success-row';
-        
-        const typeEmoji = {
-            'promo': '🏷️',
-            'regular': '💰',
-            'regex': '🔍',
-            'allegro_html': '🛒',
-            'manual': '✏️',
-            'unknown': '❓'
-        }[result.price_type] || '❓';
-        
-        row.innerHTML = `
-            <td style="font-size: 0.9em;">${getCurrentDateTime()}</td>
-            <td>
-                <strong>${escapeHtml(result.product_name)}</strong>
-            </td>
-            <td>
-                <span class="font-weight-bold">${escapeHtml(result.shop_id)}</span>
-                <br><small class="text-muted">${typeEmoji} ${result.price_type}</small>
-            </td>
-            <td>
-                ${result.price} ${result.currency}
-            </td>
-            <td><strong style="color: #28a745;">${calculatePLN(result.price, result.currency)} PLN</strong></td>
-        `;
-    } else {
-        // Wiersz z opcją ręcznego dodania
-        addManualPriceRow(result);
+    if (!tbody) {
+        console.log('Nie znaleziono tabeli prices-table');
         return;
     }
     
-    // Dodaj na górę tabeli
-    tbody.insertBefore(row, tbody.firstChild);
+    // POPRAWKA: Sprawdź czy tabela jest pusta (tylko nagłówek) czy ma zawartość
+    const currentRows = tbody.querySelectorAll('tr');
+    const isEmpty = currentRows.length === 0;
+    
+    if (result.success) {
+        // Wiersz z sukcesem
+        addSuccessRow(tbody, result, isEmpty);
+    } else {
+        // Wiersz z opcją ręcznego dodania
+        addManualPriceRow(result, isEmpty);
+    }
+}
+
+function addSuccessRow(tbody, result, isEmpty) {
+    const row = document.createElement('tr');
+    row.className = isEmpty ? 'new-row' : 'success-row';
+    
+    const typeEmoji = {
+        'promo': '🏷️',
+        'regular': '💰',
+        'regex': '🔍',
+        'allegro_html': '🛒',
+        'manual': '✏️',
+        'unknown': '❓'
+    }[result.price_type] || '❓';
+    
+    // POPRAWKA: Bezpieczne formatowanie ceny
+    const priceValue = typeof result.price === 'string' ? parseFloat(result.price) : result.price;
+    const priceText = isNaN(priceValue) ? '0.00' : priceValue.toFixed(2);
+    const pricePLN = calculatePLN(priceValue, result.currency);
+    
+    row.innerHTML = `
+        <td style="font-size: 0.9em;">${getCurrentDateTime()}</td>
+        <td>
+            <strong>${escapeHtml(result.product_name || 'Nieznany produkt')}</strong>
+        </td>
+        <td>
+            <span style="font-weight: bold;">${escapeHtml(result.shop_id)}</span>
+            <br><small style="color: #666;">${typeEmoji} ${result.price_type}</small>
+        </td>
+        <td>
+            ${priceText} ${result.currency}
+        </td>
+        <td><strong style="color: #28a745;">${pricePLN} PLN</strong></td>
+    `;
+    
+    // POPRAWKA: Jeśli tabela była pusta, zastąp zawartość
+    if (isEmpty) {
+        // Sprawdź czy nie ma komunikatu "Brak danych"
+        const noDataDiv = document.querySelector('.prices-header + div > h3');
+        if (noDataDiv && noDataDiv.textContent.includes('Brak danych')) {
+            // Ukryj komunikat "Brak danych" i pokaż tabelę
+            const noDataContainer = noDataDiv.closest('div');
+            if (noDataContainer) {
+                noDataContainer.style.display = 'none';
+            }
+            
+            // Pokaż tabelę jeśli była ukryta
+            const table = tbody.closest('table');
+            if (table) {
+                table.style.display = 'table';
+            }
+        }
+        
+        tbody.innerHTML = '';
+        tbody.appendChild(row);
+    } else {
+        // Dodaj na górę tabeli
+        tbody.insertBefore(row, tbody.firstChild);
+    }
     
     // Animacja
     row.style.opacity = '0';
@@ -186,7 +210,7 @@ function addToTable(result) {
     }, 50);
 }
 
-function addManualPriceRow(result) {
+function addManualPriceRow(result, isEmpty) {
     const tbody = document.getElementById('prices-table');
     if (!tbody) return;
     
@@ -197,15 +221,15 @@ function addManualPriceRow(result) {
     row.innerHTML = `
         <td style="font-size: 0.9em;">${getCurrentDateTime()}</td>
         <td>
-            <strong>${escapeHtml(result.product_name)}</strong>
+            <strong>${escapeHtml(result.product_name || 'Nieznany produkt')}</strong>
             <br><small style="color: #856404;">⚠️ Wymagane ręczne wprowadzenie</small>
         </td>
         <td>
-            <span class="font-weight-bold">${escapeHtml(result.shop_id)}</span>
-            <br><small class="text-muted">Błąd: ${escapeHtml(result.error.substring(0, 50))}...</small>
+            <span style="font-weight: bold;">${escapeHtml(result.shop_id)}</span>
+            <br><small style="color: #666;">Błąd: ${escapeHtml((result.error || '').substring(0, 50))}...</small>
         </td>
         <td colspan="2">
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                 <input type="number" 
                        id="price-${row.id}" 
                        step="0.01" 
@@ -217,11 +241,11 @@ function addManualPriceRow(result) {
                     <option value="EUR">EUR</option>
                     <option value="USD">USD</option>
                 </select>
-                <button onclick="saveManualPriceFromTable('${row.id}', ${result.product_id}, '${escapeHtml(result.shop_id)}', '${escapeHtml(result.full_url)}')" 
+                <button onclick="saveManualPriceFromTable('${row.id}', ${result.product_id}, '${escapeHtml(result.shop_id)}', '${escapeHtml(result.full_url || '')}')" 
                         class="btn" style="background: #28a745; color: white; padding: 4px 8px; font-size: 0.8em;">
                     💾 Zapisz
                 </button>
-                <a href="${escapeHtml(result.full_url)}" target="_blank" 
+                <a href="${escapeHtml(result.full_url || '#')}" target="_blank" 
                    class="btn" style="background: #17a2b8; color: white; padding: 4px 8px; font-size: 0.8em; text-decoration: none;">
                     🔗 Otwórz
                 </a>
@@ -233,8 +257,24 @@ function addManualPriceRow(result) {
         </td>
     `;
     
-    // Dodaj na górę tabeli
-    tbody.insertBefore(row, tbody.firstChild);
+    // POPRAWKA: Podobnie jak w addSuccessRow
+    if (isEmpty) {
+        const noDataDiv = document.querySelector('.prices-header + div > h3');
+        if (noDataDiv && noDataDiv.textContent.includes('Brak danych')) {
+            const noDataContainer = noDataDiv.closest('div');
+            if (noDataContainer) {
+                noDataContainer.style.display = 'none';
+            }
+            const table = tbody.closest('table');
+            if (table) {
+                table.style.display = 'table';
+            }
+        }
+        tbody.innerHTML = '';
+        tbody.appendChild(row);
+    } else {
+        tbody.insertBefore(row, tbody.firstChild);
+    }
     
     // Animacja
     row.style.opacity = '0';
@@ -256,7 +296,10 @@ async function saveManualPriceFromTable(rowId, productId, shopId, url) {
     const priceInput = document.getElementById(`price-${rowId}`);
     const currencySelect = document.getElementById(`currency-${rowId}`);
     
-    if (!priceInput || !currencySelect) return;
+    if (!priceInput || !currencySelect) {
+        showNotification('Błąd: nie znaleziono pól formularza', 'error');
+        return;
+    }
     
     const price = parseFloat(priceInput.value);
     const currency = currencySelect.value;
@@ -297,18 +340,18 @@ async function saveManualPriceFromTable(rowId, productId, shopId, url) {
             }
             
             // Dodaj wiersz z ceną używając prawdziwej nazwy
-            addToTable({
+            addSuccessRow(document.getElementById('prices-table'), {
                 success: true,
                 product_name: productName,
                 shop_id: shopId,
                 price: price,
                 currency: currency,
                 price_type: 'manual'
-            });
+            }, false);
             
             showNotification(`Cena zapisana: ${price} ${currency}`);
         } else {
-            showNotification('Błąd: ' + result.error, 'error');
+            showNotification('Błąd: ' + (result.error || 'Nieznany błąd'), 'error');
         }
         
     } catch (error) {
@@ -327,11 +370,14 @@ function removeManualRow(rowId) {
 }
 
 // ==========================================
-// AJAX POBIERANIE CEN (zaktualizowane)
+// AJAX POBIERANIE CEN
 // ==========================================
 
 async function startAjaxFetching() {
-    if (fetchingInProgress) return;
+    if (fetchingInProgress) {
+        showNotification('Pobieranie już w toku', 'warning');
+        return;
+    }
     
     fetchingInProgress = true;
     shouldStop = false;
@@ -362,6 +408,7 @@ async function startAjaxFetching() {
         if (totalLinks === 0) {
             resultsList.innerHTML = '<div style="color: #dc3545;">❌ Brak linków do przetworzenia</div>';
             resetControls();
+            showNotification('Brak linków do przetworzenia', 'warning');
             return;
         }
         
@@ -395,7 +442,7 @@ async function startAjaxFetching() {
                     break;
                 }
                 
-                // NOWE: Dodaj do tabeli zamiast tylko do live results
+                // NAPRAWIONE: Dodaj do tabeli
                 addToTable(result);
                 
                 // Dodaj wynik do listy na żywo (skrócona wersja)
@@ -433,6 +480,7 @@ async function startAjaxFetching() {
         if (!shouldStop) {
             progressText.textContent = '✅ Ukończone!';
             resultsList.innerHTML += '<div style="color: #28a745; font-weight: bold; margin-top: 10px;">✅ Wszystkie ceny zostały przetworzone!</div>';
+            showNotification('Pobieranie cen zakończone!', 'success');
             
             // Automatyczne odświeżenie strony po 3 sekundach
             setTimeout(() => {
@@ -442,6 +490,7 @@ async function startAjaxFetching() {
         
     } catch (error) {
         resultsList.innerHTML += `<div style="color: #dc3545;">💥 Błąd krytyczny: ${error.message}</div>`;
+        showNotification('Błąd krytyczny: ' + error.message, 'error');
     }
     
     resetControls();
@@ -449,6 +498,7 @@ async function startAjaxFetching() {
 
 function stopFetching() {
     shouldStop = true;
+    showNotification('Zatrzymywanie pobierania...', 'warning');
 }
 
 function resetControls() {
@@ -457,8 +507,8 @@ function resetControls() {
     const fetchBtn = document.getElementById('fetch-btn');
     const stopBtn = document.getElementById('stop-btn');
     
-    fetchBtn.style.display = 'inline-block';
-    stopBtn.style.display = 'none';
+    if (fetchBtn) fetchBtn.style.display = 'inline-block';
+    if (stopBtn) stopBtn.style.display = 'none';
 }
 
 // ==========================================
@@ -478,9 +528,12 @@ function getCurrentDateTime() {
 }
 
 function calculatePLN(price, currency) {
-    const rates = { 'PLN': 1.0, 'EUR': 4.30, 'USD': 4.00 };
+    // Kursy walut - w prawdziwej aplikacji pobierane z API
+    const rates = { 'PLN': 1.0, 'EUR': 4.30, 'USD': 4.00, 'GBP': 5.00 };
     const rate = rates[currency] || 1.0;
-    return (price * rate).toFixed(2);
+    const priceNum = typeof price === 'string' ? parseFloat(price) : price;
+    const result = isNaN(priceNum) ? 0 : (priceNum * rate);
+    return result.toFixed(2);
 }
 
 async function loadUserInfo() {

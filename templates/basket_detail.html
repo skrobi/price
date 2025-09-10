@@ -108,7 +108,13 @@
             {% set item = basket.basket_items[product_key] %}
             <tr>
                 <td style="padding: 12px; border: 1px solid #dee2e6;">
-                    <strong>{{ item.product_name or 'Produkt ' + product_key }}</strong><br>
+                    <!-- NOWE: Podlinkowana nazwa produktu -->
+                    <strong>
+                        <a href="{{ url_for('products.product_detail', product_id=item.product_id) }}" 
+                           style="color: #007bff; text-decoration: none;">
+                            {{ item.product_name or 'Produkt ' + product_key }}
+                        </a>
+                    </strong><br>
                     <small style="color: #666;">ID: {{ item.product_id }}</small>
                     
                     {% if item.get('optimization_result', {}).get('is_substitute', False) %}

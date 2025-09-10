@@ -23,6 +23,16 @@
     font-size: 0.9em;
     display: inline-block;
 }
+
+.manual-price-row {
+    background: #fff3cd !important;
+    border: 2px solid #ffc107;
+}
+
+.success-row {
+    background: #d4edda !important;
+    border: 2px solid #28a745;
+}
 </style>
 {% endblock %}
 
@@ -33,6 +43,13 @@
         📊 {{ pagination.total_items }} {% if pagination.total_items == 1 %}cena{% elif pagination.total_items < 5 %}ceny{% else %}cen{% endif %}
     </div>
 </div>
+
+<!-- Wyświetl błąd jeśli jest -->
+{% if error_message %}
+<div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin: 15px 0; color: #721c24; border-radius: 5px;">
+    <strong>Błąd:</strong> {{ error_message }}
+</div>
+{% endif %}
 
 <!-- AJAX Pobieranie cen -->
 <div class="ajax-controls">
@@ -117,27 +134,39 @@
     <tbody id="prices-table">
         {% for price in prices %}
         <tr>
-            <td style="font-size: 0.9em;">{{ price.created[:16] }}</td>
+            <td style="font-size: 0.9em;">{{ price.created[:16] if price.created else 'Brak daty' }}</td>
             <td>
                 <a href="{{ url_for('products.product_detail', product_id=price.product_id) }}" 
                    style="color: #007bff; text-decoration: none;">
-                    <strong>{{ price.product_name }}</strong>
+                    <strong>{{ price.product_name or 'Nieznany produkt' }}</strong>
                 </a>
             </td>
             <td>
-                <span class="font-weight-bold">{{ price.shop_id }}</span>
+                <span class="font-weight-bold">{{ price.shop_id or 'Nieznany sklep' }}</span>
                 {% if price.get('price_type') %}
                     <br><small class="text-muted">{{ price.price_type }}</small>
                 {% endif %}
             </td>
             <td>
-                {% if price.currency != 'PLN' %}
-                    {{ "%.2f"|format(price.price) }} {{ price.currency }}
+                {% if price.price %}
+                    {% set price_value = price.price|float if price.price is string else price.price %}
+                    {% if price.currency and price.currency != 'PLN' %}
+                        {{ "%.2f"|format(price_value) }} {{ price.currency }}
+                    {% else %}
+                        {{ "%.2f"|format(price_value) }} PLN
+                    {% endif %}
                 {% else %}
-                    {{ "%.2f"|format(price.price) }} PLN
+                    <span style="color: #999;">Brak ceny</span>
                 {% endif %}
             </td>
-            <td><strong style="color: #28a745;">{{ "%.2f"|format(price.price_pln) }} PLN</strong></td>
+            <td>
+                {% if price.price_pln %}
+                    {% set price_pln_value = price.price_pln|float if price.price_pln is string else price.price_pln %}
+                    <strong style="color: #28a745;">{{ "%.2f"|format(price_pln_value) }} PLN</strong>
+                {% else %}
+                    <span style="color: #999;">-</span>
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
     </tbody>
@@ -161,10 +190,10 @@
     <!-- Pierwsza strona -->
     {% if pagination.has_prev %}
         <a href="{{ url_for('prices.prices', page=1, shop=current_shop_filter, product=current_product_filter) }}">
-            ⮮ Pierwsza
+            ⏮️ Pierwsza
         </a>
     {% else %}
-        <span class="disabled">⮮ Pierwsza</span>
+        <span class="disabled">⏮️ Pierwsza</span>
     {% endif %}
     
     <!-- Poprzednia strona -->
@@ -218,10 +247,10 @@
     <!-- Ostatnia strona -->
     {% if pagination.has_next %}
         <a href="{{ url_for('prices.prices', page=pagination.total_pages, shop=current_shop_filter, product=current_product_filter) }}">
-            Ostatnia ⭐
+            Ostatnia ⏭️
         </a>
     {% else %}
-        <span class="disabled">Ostatnia ⭐</span>
+        <span class="disabled">Ostatnia ⏭️</span>
     {% endif %}
 </nav>
 {% endif %}

@@ -50,7 +50,7 @@
 <div style="margin-top: 20px;">
     <h3>📊 Szczegóły optymalizacji</h3>
     <details>
-        <summary style="cursor: pointer; color: #007bff; font-weight: bold;">🔍 Pokaż szczegółowy log optymalizacji ({{ result.optimization_log|length }} wpisów)</summary>
+        <summary style="cursor: pointer; color: #007bff; font-weight: bold;">📝 Pokaż szczegółowy log optymalizacji ({{ result.optimization_log|length }} wpisów)</summary>
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; margin-top: 10px;">
             <div style="margin-bottom: 10px;">
                 <small style="color: #666;">
@@ -98,16 +98,21 @@
             <td style="padding: 8px; border: 1px solid #dee2e6; color: #28a745;"><strong>{{ "%.2f"|format(item.total_price_pln) }} PLN</strong></td>
             <td style="padding: 8px; border: 1px solid #dee2e6; font-size: 0.8em;">
                 {% if item.get('is_substitute') %}
-                <div style="background: #fff3cd; padding: 2px 6px; border-radius: 3px; margin-bottom: 2px;">
+                <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 2px 6px; border-radius: 3px; margin-bottom: 2px;">
                     🔄 <strong>Zamiennik:</strong> {{ item.get('substitute_reason', 'Użyto zamiennik') }}
                 </div>
                 {% endif %}
                 {% if item.get('quantity_optimized') %}
-                <div style="background: #e8f5e8; padding: 2px 6px; border-radius: 3px;">
+                <div style="background: #e8f5e8; border: 1px solid #28a745; padding: 2px 6px; border-radius: 3px; margin-bottom: 2px;">
                     📊 <strong>Ilość:</strong> {{ item.get('optimization_reason', 'Zoptymalizowano ilość') }}
                 </div>
                 {% endif %}
-                {% if not item.get('is_substitute') and not item.get('quantity_optimized') %}
+                {% if item.get('is_group') %}
+                <div style="background: #cce5ff; border: 1px solid #007bff; padding: 2px 6px; border-radius: 3px; margin-bottom: 2px;">
+                    🔗 <strong>Grupa:</strong> {{ item.get('original_items_in_group', 1) }} produktów połączono
+                </div>
+                {% endif %}
+                {% if not item.get('is_substitute') and not item.get('quantity_optimized') and not item.get('is_group') %}
                 <span style="color: #666;">Bez zmian</span>
                 {% endif %}
             </td>

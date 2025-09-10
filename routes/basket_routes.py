@@ -54,6 +54,10 @@ def basket_detail(basket_id):
     
     products = load_products()
     latest_prices = get_latest_prices()
+    print("DEBUG LATEST_PRICES:")
+    for key, price_data in latest_prices.items():
+        print(f"  {key}: price={repr(price_data.get('price'))}, type={type(price_data.get('price'))}")
+    
     
     # Upewnij się że basket_items istnieje
     if 'basket_items' not in basket:
@@ -133,14 +137,18 @@ def basket_detail(basket_id):
 
 @basket_bp.route('/basket/<basket_id>/settings', methods=['GET', 'POST'])
 def basket_settings(basket_id):
-    """Edycja ustawień koszyka"""
+    """Edycja ustawień koszyka - POPRAWIONA WERSJA Z WSZYSTKIMI USTAWIENIAMI"""
     basket = basket_manager.get_basket(basket_id)
     if not basket:
         flash('Koszyk nie został znaleziony!')
         return redirect(url_for('baskets.basket'))
     
     if request.method == 'POST':
-        # Aktualizuj ustawienia
+        print(f"🔍 DEBUG BASKET_SETTINGS POST:")
+        print(f"   basket_id: {basket_id}")
+        print(f"   request.form: {dict(request.form)}")
+        
+        # WSZYSTKIE USTAWIENIA Z FORMULARZA
         optimization_settings = {
             'priority': request.form.get('priority', 'lowest_total_cost'),
             'max_shops': int(request.form.get('max_shops', 5)),
@@ -148,12 +156,28 @@ def basket_settings(basket_id):
             'min_savings_threshold': float(request.form.get('min_savings_threshold', 5.0)),
             'max_quantity_multiplier': int(request.form.get('max_quantity_multiplier', 3)),
             'consider_free_shipping': request.form.get('consider_free_shipping') == 'on',
-            'show_logs': request.form.get('show_logs') == 'on'
+            'show_logs': request.form.get('show_logs') == 'on',
+            
+            # NOWE: max_combinations
+            'max_combinations': int(request.form.get('max_combinations', 200000)),
+            
+            # NOWE: WSZYSTKIE USTAWIENIA ZAMIENNIKÓW
+            'substitute_settings': {
+                'allow_substitutes': request.form.get('allow_substitutes') == 'on',
+                'max_price_increase_percent': float(request.form.get('max_price_increase_percent', 20.0)),
+                'prefer_original': request.form.get('prefer_original') == 'on',
+                'max_substitutes_per_product': int(request.form.get('max_substitutes_per_product', 3)),
+                'show_substitute_reasons': request.form.get('show_substitute_reasons') == 'on'
+            }
         }
         
+        print(f"   optimization_settings utworzone: {optimization_settings}")
+        
         name = request.form.get('name', basket['name'])
+        print(f"   name: {name}")
         
         success = basket_manager.update_basket_settings(basket_id, optimization_settings, name)
+        print(f"   success: {success}")
         
         if success:
             flash('Ustawienia koszyka zostały zapisane!')

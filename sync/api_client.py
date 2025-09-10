@@ -1,5 +1,5 @@
 """
-Główny klient API do komunikacji z centralną bazą danych - POPRAWIONY
+Główny klient API do komunikacji z centralną bazą danych - POPRAWIONY DLA endpoints/
 """
 import requests
 import json
@@ -47,7 +47,7 @@ class CircuitBreaker:
             raise
 
 class PriceTrackerAPIClient:
-    """Główny klient API z obsługą retry, circuit breaker i offline mode"""
+    """Główny klient API z obsługą retry, circuit breaker i offline mode - DOSTOSOWANY DO endpoints/"""
     
     def __init__(self, base_url: str, user_id: str, timeout: int = 30):
         self.base_url = base_url.rstrip('/')
@@ -56,7 +56,7 @@ class PriceTrackerAPIClient:
         self.session = requests.Session()
         self.circuit_breaker = CircuitBreaker()
         
-        # Konfiguracja session
+        # Konfiguracja session - user_id w headerach (PHP pobiera z ApiHelper::getUserId())
         self.session.headers.update({
             'Content-Type': 'application/json',
             'X-User-ID': user_id,
@@ -69,17 +69,43 @@ class PriceTrackerAPIClient:
         
     def _request_with_retry(self, method: str, endpoint: str, 
                            max_retries: int = 3, **kwargs) -> Dict[str, Any]:
-        """Wykonaj request z retry logic i exponential backoff - POPRAWIONE"""
+        """Wykonaj request z retry logic - POPRAWIONE DLA endpoints/ i PHP logiki"""
         
         def make_request():
-            url = f"{self.base_url}{endpoint}"
+            # Buduj URL dla endpoints/
+            if not endpoint.startswith('/endpoints/'):
+                if endpoint.startswith('/'):
+                    endpoint_path = f"/endpoints{endpoint}.php"
+                else:
+                    endpoint_path = f"/endpoints/{endpoint}.php"
+            else:
+                endpoint_path = endpoint
+                
+            url = f"{self.base_url}{endpoint_path}"
+            
+            # POPRAWKA: Sprawdź czy params są w kwargs i dodaj je do URL
+            params = kwargs.pop('params', {})
+            if params:
+                # Dla POST z action w params, dodaj do URL
+                if method == 'POST' and 'action' in params:
+                    separator = '&' if '?' in url else '?'
+                    url += f"{separator}action={params['action']}"
+                    # Usuń action z params żeby nie było duplikatu
+                    params = {k: v for k, v in params.items() if k != 'action'}
+                
+                # Dodaj pozostałe params
+                if params:
+                    import urllib.parse
+                    separator = '&' if '?' in url else '?'
+                    url += separator + urllib.parse.urlencode(params)
+            
             response = self.session.request(method, url, timeout=self.timeout, **kwargs)
             
-            # POPRAWKA: Sprawdź czy response nie jest pusty
+            # Sprawdź czy response nie jest pusty
             if not response.content or not response.content.strip():
                 raise requests.exceptions.ConnectionError("Empty response from server")
             
-            # POPRAWKA: Sprawdź content-type
+            # Sprawdź content-type
             content_type = response.headers.get('content-type', '')
             if 'application/json' not in content_type and 'text/html' not in content_type:
                 logger.warning(f"Unexpected content-type: {content_type}")
@@ -99,7 +125,7 @@ class PriceTrackerAPIClient:
                 except json.JSONDecodeError:
                     raise ValueError(f"HTTP {response.status_code}: {response.text[:200]}")
             
-            # POPRAWKA: Bezpieczne parsowanie JSON
+            # Bezpieczne parsowanie JSON
             try:
                 return response.json()
             except json.JSONDecodeError as e:
@@ -131,57 +157,110 @@ class PriceTrackerAPIClient:
         raise last_exception
 
     def check_health(self) -> Dict[str, Any]:
-        """Sprawdź status API - POPRAWIONE"""
+        """Sprawdź status API - test podstawowego endpointu products"""
         try:
-            result = self._request_with_retry('GET', '/health')
-            self.is_online = result.get('status') == 'OK'
-            self.last_health_check = datetime.now()
-            return result
+            # Testuj czy products.php odpowiada (GET z action=list)
+            params = {'action': 'list', 'limit': 1}
+            result = self._request_with_retry('GET', '/products', params=params)
+            
+            # Jeśli products odpowiedziały, API działa
+            if result.get('success'):
+                self.is_online = True
+                self.last_health_check = datetime.now()
+                return {'status': 'OK', 'message': 'API is working'}
+            else:
+                self.is_online = False
+                return {'status': 'ERROR', 'error': 'API returned error'}
+                
         except Exception as e:
             self.is_online = False
             logger.error(f"Health check failed: {e}")
             return {'status': 'ERROR', 'error': str(e)}
 
     # =============================================================================
-    # PRODUCTS API
+    # PRODUCTS API - endpoints/products.php
     # =============================================================================
     
-    def get_products(self, limit: int = 1000, offset: int = 0) -> Dict[str, Any]:
-        """Pobierz wszystkie produkty z API"""
-        params = {'action': 'list', 'limit': limit, 'offset': offset}
+    def get_products(self, limit: int = 1000, offset: int = 0, search: str = '') -> Dict[str, Any]:
+        """Pobierz wszystkie produkty z API - GET zgodnie z PHP"""
+        params = {
+            'action': 'list', 
+            'limit': min(limit, 1000),  # PHP ma max 1000
+            'offset': max(offset, 0)
+        }
+        if search:
+            params['search'] = search
         return self._request_with_retry('GET', '/products', params=params)
     
-    def add_product(self, name: str, ean: str = '') -> Dict[str, Any]:
-        """Dodaj nowy produkt do API"""
-        data = {
-            'user_id': self.user_id,
-            'name': name,
-            'ean': ean
+    def search_products(self, query: str) -> Dict[str, Any]:
+        """Wyszukaj produkty po nazwie - GET zgodnie z PHP"""
+        params = {
+            'action': 'search',
+            'q': query
         }
-        return self._request_with_retry('POST', '/products?action=add', json=data)
-    
-    def bulk_add_products(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Dodaj wiele produktów jednocześnie"""
-        data = {
-            'user_id': self.user_id,
-            'products': products
-        }
-        return self._request_with_retry('POST', '/products?action=bulk_add', json=data)
+        return self._request_with_retry('GET', '/products', params=params)
     
     def check_product_duplicates(self, name: str, ean: str = '') -> Dict[str, Any]:
-        """Sprawdź czy produkt już istnieje"""
-        params = {'action': 'check_duplicates', 'name': name}
+        """Sprawdź czy produkt już istnieje - GET zgodnie z PHP"""
+        params = {
+            'action': 'check_duplicates', 
+            'name': name
+        }
         if ean:
             params['ean'] = ean
         return self._request_with_retry('GET', '/products', params=params)
+    
+    def add_product(self, name: str, ean: str = '') -> Dict[str, Any]:
+        """Dodaj nowy produkt do API - POST zgodnie z PHP"""
+        data = {
+            'name': name,
+            'ean': ean
+        }
+        # POPRAWKA: action w params
+        return self._request_with_retry('POST', '/products', params={'action': 'add'}, json=data)
+    
+    def bulk_add_products(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Dodaj wiele produktów jednocześnie - POST zgodnie z PHP"""
+        # API obsługuje max 100 produktów na batch
+        if len(products) > 100:
+            # Podziel na mniejsze batche
+            results = []
+            for i in range(0, len(products), 100):
+                batch = products[i:i+100]
+                batch_result = self._add_products_batch(batch)
+                results.append(batch_result)
+            
+            # Połącz wyniki
+            total_added = sum(r.get('summary', {}).get('added', 0) for r in results)
+            total_skipped = sum(r.get('summary', {}).get('skipped', 0) for r in results)
+            
+            return {
+                'success': True,
+                'summary': {
+                    'total_processed': len(products),
+                    'added': total_added,
+                    'skipped': total_skipped
+                },
+                'batch_results': results
+            }
+        else:
+            return self._add_products_batch(products)
+    
+    def _add_products_batch(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Dodaj batch produktów (max 100) - POST"""
+        data = {
+            'products': products
+        }
+        # POPRAWKA: action w params
+        return self._request_with_retry('POST', '/products', params={'action': 'bulk_add'}, json=data)
 
     # =============================================================================
-    # LINKS API
+    # LINKS API - endpoints/links.php
     # =============================================================================
     
     def get_links(self, product_id: Optional[int] = None, 
                   shop_id: Optional[str] = None) -> Dict[str, Any]:
-        """Pobierz linki produktów"""
+        """Pobierz linki produktów - GET"""
         params = {'action': 'list'}
         if product_id:
             params['product_id'] = product_id
@@ -190,30 +269,30 @@ class PriceTrackerAPIClient:
         return self._request_with_retry('GET', '/links', params=params)
     
     def add_link(self, product_id: int, shop_id: str, url: str) -> Dict[str, Any]:
-        """Dodaj nowy link produktu"""
+        """Dodaj nowy link produktu - POST"""
         data = {
-            'user_id': self.user_id,
             'product_id': product_id,
             'shop_id': shop_id,
             'url': url
         }
-        return self._request_with_retry('POST', '/links?action=add', json=data)
+        # POPRAWKA: action w params
+        return self._request_with_retry('POST', '/links', params={'action': 'add'}, json=data)
     
     def bulk_add_links(self, links: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Dodaj wiele linków jednocześnie"""
+        """Dodaj wiele linków jednocześnie - POST"""
         data = {
-            'user_id': self.user_id,
             'links': links
         }
-        return self._request_with_retry('POST', '/links?action=bulk_add', json=data)
+        # POPRAWKA: action w params
+        return self._request_with_retry('POST', '/links', params={'action': 'bulk_add'}, json=data)
 
     # =============================================================================
-    # PRICES API
+    # PRICES API - endpoints/prices.php
     # =============================================================================
     
     def get_latest_prices(self, product_ids: Optional[List[int]] = None,
                          shop_ids: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Pobierz najnowsze ceny"""
+        """Pobierz najnowsze ceny - GET"""
         params = {'action': 'latest'}
         if product_ids:
             params['product_ids'] = ','.join(map(str, product_ids))
@@ -222,7 +301,7 @@ class PriceTrackerAPIClient:
         return self._request_with_retry('GET', '/prices', params=params)
     
     def get_price_history(self, product_id: int, days: int = 7) -> Dict[str, Any]:
-        """Pobierz historię cen dla produktu"""
+        """Pobierz historię cen dla produktu - GET"""
         params = {
             'action': 'for_product',
             'product_id': product_id,
@@ -233,9 +312,8 @@ class PriceTrackerAPIClient:
     def add_price(self, product_id: int, shop_id: str, price: float,
                   currency: str = 'PLN', price_type: str = 'scraped',
                   url: str = '', source: str = 'python_app') -> Dict[str, Any]:
-        """Dodaj nową cenę"""
+        """Dodaj nową cenę - POST"""
         data = {
-            'user_id': self.user_id,
             'product_id': product_id,
             'shop_id': shop_id,
             'price': price,
@@ -244,23 +322,24 @@ class PriceTrackerAPIClient:
             'url': url,
             'source': source
         }
-        return self._request_with_retry('POST', '/prices?action=add', json=data)
+        # POPRAWKA: action w params
+        return self._request_with_retry('POST', '/prices', params={'action': 'add'}, json=data)
     
     def bulk_add_prices(self, prices: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Dodaj wiele cen jednocześnie"""
+        """Dodaj wiele cen jednocześnie - POST"""
         data = {
-            'user_id': self.user_id,
             'prices': prices
         }
-        return self._request_with_retry('POST', '/prices?action=bulk_add', json=data)
+        # POPRAWKA: action w params
+        return self._request_with_retry('POST', '/prices', params={'action': 'bulk_add'}, json=data)
 
     # =============================================================================
-    # SHOP CONFIGS API
+    # SHOP CONFIGS API - endpoints/shop_configs.php
     # =============================================================================
     
     def get_shop_configs(self, shop_id: Optional[str] = None,
                         modified_since: Optional[datetime] = None) -> Dict[str, Any]:
-        """Pobierz konfiguracje sklepów"""
+        """Pobierz konfiguracje sklepów - GET"""
         params = {'action': 'list'}
         if shop_id:
             params['shop_id'] = shop_id
@@ -269,40 +348,38 @@ class PriceTrackerAPIClient:
         return self._request_with_retry('GET', '/shop_configs', params=params)
     
     def update_shop_config(self, shop_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Aktualizuj konfigurację sklepu"""
-        data = {
-            'user_id': self.user_id,
-            **shop_config
-        }
-        return self._request_with_retry('POST', '/shop_configs?action=update', json=data)
+        """Aktualizuj konfigurację sklepu - POST"""
+        return self._request_with_retry('POST', '/shop_configs', params={'action': 'update'}, json=shop_config)
     
     def bulk_update_shop_configs(self, shop_configs: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Aktualizuj wiele konfiguracji sklepów"""
+        """Aktualizuj wiele konfiguracji sklepów - POST"""
         data = {
-            'user_id': self.user_id,
             'shop_configs': shop_configs
         }
-        return self._request_with_retry('POST', '/shop_configs?action=bulk_update', json=data)
+        return self._request_with_retry('POST', '/shop_configs', params={'action': 'bulk_update'}, json=data)
 
     # =============================================================================
-    # SUBSTITUTES API
+    # SUBSTITUTES API - endpoints/substitutes.php
     # =============================================================================
     
     def get_substitute_groups(self) -> Dict[str, Any]:
-        """Pobierz wszystkie grupy zamienników"""
-        return self._request_with_retry('GET', '/substitutes?action=list')
+        """Pobierz wszystkie grupy zamienników - GET"""
+        params = {'action': 'list'}
+        return self._request_with_retry('GET', '/substitutes', params=params)
     
     def get_substitutes_for_product(self, product_id: int) -> Dict[str, Any]:
-        """Pobierz zamienniki dla produktu"""
-        params = {'action': 'for_product', 'product_id': product_id}
+        """Pobierz zamienniki dla produktu - GET"""
+        params = {
+            'action': 'for_product', 
+            'product_id': product_id
+        }
         return self._request_with_retry('GET', '/substitutes', params=params)
     
     def add_substitute_group(self, name: str, product_ids: List[int],
                            priority_map: Optional[Dict[str, int]] = None,
                            settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Dodaj nową grupę zamienników"""
+        """Dodaj nową grupę zamienników - POST"""
         data = {
-            'user_id': self.user_id,
             'name': name,
             'product_ids': product_ids
         }
@@ -310,56 +387,61 @@ class PriceTrackerAPIClient:
             data['priority_map'] = priority_map
         if settings:
             data['settings'] = settings
-        return self._request_with_retry('POST', '/substitutes?action=add', json=data)
+        return self._request_with_retry('POST', '/substitutes', params={'action': 'add'}, json=data)
     
     def delete_substitute_group(self, group_id: str) -> Dict[str, Any]:
-        """Usuń grupę zamienników"""
-        params = {'action': 'group', 'group_id': group_id}
-        return self._request_with_retry('DELETE', '/substitutes', params=params)
+        """Usuń grupę zamienników - POST"""
+        data = {
+            'group_id': group_id
+        }
+        return self._request_with_retry('POST', '/substitutes', params={'action': 'delete_group'}, json=data)
 
     # =============================================================================
-    # SYNC API
+    # SYNC API - endpoints/sync.php
     # =============================================================================
     
     def get_sync_status(self) -> Dict[str, Any]:
-        """Pobierz status synchronizacji użytkownika"""
-        return self._request_with_retry('GET', '/sync?action=status')
+        """Pobierz status synchronizacji użytkownika - GET"""
+        params = {'action': 'status'}
+        return self._request_with_retry('GET', '/sync', params=params)
     
     def get_database_summary(self) -> Dict[str, Any]:
-        """Pobierz podsumowanie całej bazy danych"""
-        return self._request_with_retry('GET', '/sync?action=summary')
+        """Pobierz podsumowanie całej bazy danych - GET"""
+        params = {'action': 'summary'}
+        return self._request_with_retry('GET', '/sync', params=params)
     
     def get_recent_changes(self, hours: int = 24) -> Dict[str, Any]:
-        """Pobierz ostatnie zmiany w bazie"""
-        params = {'action': 'changes', 'hours': hours}
+        """Pobierz ostatnie zmiany w bazie - GET"""
+        params = {
+            'action': 'changes',
+            'hours': hours
+        }
         return self._request_with_retry('GET', '/sync', params=params)
     
     def full_sync_upload(self, products: List[Dict], links: List[Dict],
                         prices: List[Dict], shop_configs: List[Dict],
                         substitute_groups: List[Dict]) -> Dict[str, Any]:
-        """Pełna synchronizacja danych z klienta"""
+        """Pełna synchronizacja danych z klienta - POST"""
         data = {
-            'user_id': self.user_id,
             'products': products,
             'links': links,
             'prices': prices,
             'shop_configs': shop_configs,
             'substitute_groups': substitute_groups
         }
-        return self._request_with_retry('POST', '/sync?action=full_sync', json=data)
+        return self._request_with_retry('POST', '/sync', params={'action': 'full_sync'}, json=data)
     
     def upload_batch(self, data_type: str, data: List[Dict]) -> Dict[str, Any]:
-        """Upload pojedynczego typu danych"""
+        """Upload pojedynczego typu danych - POST"""
         allowed_types = ['products', 'links', 'prices', 'shop_configs']
         if data_type not in allowed_types:
             raise ValueError(f"Invalid data_type. Allowed: {allowed_types}")
         
         payload = {
-            'user_id': self.user_id,
             'type': data_type,
             'data': data
         }
-        return self._request_with_retry('POST', '/sync?action=upload_batch', json=payload)
+        return self._request_with_retry('POST', '/sync', params={'action': 'upload_batch'}, json=payload)
 
     # =============================================================================
     # UTILITY METHODS
@@ -384,3 +466,37 @@ class PriceTrackerAPIClient:
                 'is_online': False,
                 'last_check': self.last_health_check.isoformat() if self.last_health_check else None
             }
+    
+    def test_all_endpoints(self) -> Dict[str, Any]:
+        """Test wszystkich endpointów PHP"""
+        endpoints = ['products', 'links', 'prices', 'shop_configs', 'substitutes', 'sync']
+        results = {}
+        
+        for endpoint in endpoints:
+            try:
+                if endpoint == 'products':
+                    response = self.get_products(limit=1)
+                elif endpoint == 'links':
+                    response = self.get_links()
+                elif endpoint == 'prices':
+                    response = self.get_latest_prices()
+                elif endpoint == 'shop_configs':
+                    response = self.get_shop_configs()
+                elif endpoint == 'substitutes':
+                    response = self.get_substitute_groups()
+                elif endpoint == 'sync':
+                    response = self.get_sync_status()
+                else:
+                    response = {'status': 'UNKNOWN'}
+                
+                results[endpoint] = {
+                    'status': 'OK',
+                    'response': response
+                }
+            except Exception as e:
+                results[endpoint] = {
+                    'status': 'ERROR',
+                    'error': str(e)
+                }
+        
+        return results

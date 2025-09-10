@@ -138,14 +138,41 @@ def get_latest_prices_by_url():
     
     return latest_prices
 
-def convert_to_pln(price, currency):
-    """Konwertuje cenę na PLN"""
-    rates = {
-        'PLN': 1.0,
-        'EUR': 4.30,
-        'USD': 4.00
-    }
-    return price * rates.get(currency, 1.0)
+def convert_to_pln(price_value, currency='PLN'):
+    """Konwertuje cenę na PLN - POPRAWIONA WERSJA"""
+    try:
+        # Bezpieczna konwersja na float
+        if isinstance(price_value, str):
+            # Usuń spacje i zamień przecinek na kropkę
+            price_clean = price_value.strip().replace(',', '.')
+            price_float = float(price_clean)
+        elif isinstance(price_value, (int, float)):
+            price_float = float(price_value)
+        else:
+            print(f"BŁĄD: Nieznany typ ceny: {type(price_value)} = {price_value}")
+            return 0.0
+        
+        # Sprawdź czy cena jest sensowna
+        if price_float <= 0:
+            print(f"BŁĄD: Nieprawidłowa cena: {price_float}")
+            return 0.0
+        
+        # Kursy walut
+        exchange_rates = {
+            'PLN': 1.0,
+            'EUR': 4.30,
+            'USD': 4.00,
+            'GBP': 5.00
+        }
+        
+        rate = exchange_rates.get(currency, 1.0)
+        result = price_float * rate
+        
+        return result
+        
+    except (ValueError, TypeError) as e:
+        print(f"BŁĄD konwersji ceny: {e}, wartość: '{price_value}', typ: {type(price_value)}")
+        return 0.0
 
 def get_product_price_range(product_id, latest_prices):
     """Zwraca zakres cen dla produktu (min-max)"""

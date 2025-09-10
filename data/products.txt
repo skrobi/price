@@ -1,11 +1,12 @@
-{"id": 1, "name": "Nasic Kids aerozol do nosa 10 ml", "ean": "5909990835645", "created": "2025-09-02T15:01:06.499688", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 2, "name": "Hascovir control MAX, 400 mg, tabletki, 30 szt.", "ean": "", "created": "2025-09-03T12:16:53.904644", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 3, "name": "Xylometazolin WZF 0,1% krople do nosa 10 ml", "ean": "", "created": "2025-09-03T12:32:54.987934", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 4, "name": "Tretussin Med 250 ml", "ean": "", "created": "2025-09-04T11:50:26.403564", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 5, "name": "ACTI-trin, syrop, 100 ml", "ean": "", "created": "2025-09-04T12:28:30.224194", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 6, "name": "Rutinoscorbin, 150 tabletek", "ean": "", "created": "2025-09-04T22:16:23.901596", "substitute_group": "group_1_1757062275", "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}, "updated": "2025-09-05T10:51:15.766224"}
-{"id": 7, "name": "ACC Optima 600 mg, 10 tabletek", "ean": "", "created": "2025-09-05T08:44:56.546504", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 8, "name": "Essensey L-Tryptofan, 90 kaps", "ean": "", "created": "2025-09-05T09:24:22.676859", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 9, "name": "Rutinowitum C - 150 tabl", "ean": "", "created": "2025-09-05T10:38:16.569204", "substitute_group": "group_1_1757062275", "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}, "updated": "2025-09-05T10:51:15.766224"}
-{"id": 10, "name": "Giant Revolt 0 2024 Pyrite Brown M/L", "ean": "", "created": "2025-09-05T12:30:36.581271", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
-{"id": 12, "name": "Giant Revolt 1 M/L", "ean": "", "created": "2025-09-05T12:47:44.513549", "substitute_group": null, "substitute_settings": {"allow_substitutes": true, "max_price_increase_percent": 20.0, "max_quantity_multiplier": 1.5}}
+{"id": 13, "name": "Suport rowerowy ACCENT AIR", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-08 22:13:23"}
+{"id": 12, "name": "Giant Revolt 1 M/L", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-05 12:47:44"}
+{"id": 10, "name": "Giant Revolt 0 2024 Pyrite Brown M/L", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-05 12:30:36"}
+{"id": 9, "name": "Rutinowitum C - 150 tabl", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-05 10:38:16"}
+{"id": 8, "name": "Essensey L-Tryptofan, 90 kaps", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-05 09:24:22"}
+{"id": 7, "name": "ACC Optima 600 mg, 10 tabletek", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-05 08:44:56"}
+{"id": 6, "name": "Rutinoscorbin, 150 tabletek", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-04 22:16:23"}
+{"id": 5, "name": "ACTI-trin, syrop, 100 ml", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-04 12:28:30"}
+{"id": 4, "name": "Tretussin Med 250 ml", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-04 11:50:26"}
+{"id": 3, "name": "Xylometazolin WZF 0,1% krople do nosa 10 ml", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-03 12:32:54"}
+{"id": 2, "name": "Hascovir control MAX, 400 mg, tabletki, 30 szt.", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-03 12:16:53"}
+{"id": 1, "name": "Nasic Kids aerozol do nosa 10 ml", "ean": "5909990835645", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-02 15:01:06"}

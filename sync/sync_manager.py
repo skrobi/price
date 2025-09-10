@@ -38,7 +38,7 @@ class SyncManager:
         # Konfiguracja
         self.api_base_url = api_base_url
         self.sync_enabled = True
-        self.auto_sync_interval = 300  # 5 minut
+        self.auto_sync_interval = 15  # 5 minut
         
         # Status
         self.is_online = False
