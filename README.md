@@ -16,26 +16,88 @@
 - 🔍 **Auto-wyszukiwanie** - Znajdowanie produktów w nowych sklepach
 - 📊 **Historia cen** - Śledzenie zmian w czasie
 
-# 🚀 Przewodnik uruchomienia Price Tracker
+## 🚀 Instalacja i uruchomienie
 
-## 📋 Wymagania
+### 📋 Wymagania
 - Python 3.7+
 - Połączenie z internetem
 
 ---
 
-## 🔧 Opcja 1: Z Git
+### 🔧 Opcja 1: Z Git
 
-### 1. Zainstaluj Python
+#### 1. Zainstaluj Python
 - Pobierz z [python.org](https://python.org/downloads)
 - **WAŻNE**: Zaznacz "Add Python to PATH"
 
-### 2. Sklonuj repozytorium
+#### 2. Sklonuj repozytorium
 ```bash
 git clone https://github.com/username/price-tracker.git
 cd price-tracker
+```
+
+#### 3. Zainstaluj zależności
+```bash
+pip install flask beautifulsoup4 requests urllib3 lxml
+```
+
+#### 4. Uruchom aplikację
+```bash
+python app.py
+```
+
+---
+
+### 📦 Opcja 2: Bez Git (łatwiejsza)
+
+#### 1. Zainstaluj Python
+- Idź na [python.org](https://python.org/downloads)
+- Kliknij "Download Python" 
+- **KONIECZNIE zaznacz "Add Python to PATH"**
+
+#### 2. Pobierz projekt
+- Kliknij zielony przycisk **"Code"** → **"Download ZIP"**
+- Rozpakuj na pulpicie
+
+#### 3. Otwórz terminal w folderze
+- **Windows**: Shift + prawy klick → "Otwórz PowerShell tutaj"
+- **macOS**: Prawy klick → Services → "New Terminal at Folder"
+- **Linux**: Prawy klick → "Open in Terminal"
+
+#### 4. Zainstaluj biblioteki
+```bash
+pip install flask beautifulsoup4 requests urllib3 lxml
+```
+
+#### 5. Uruchom aplikację
+```bash
+python app.py
+```
+
+---
+
+### ✅ Sprawdzenie działania
 
 Aplikacja będzie dostępna pod adresem: **http://localhost:5000**
+
+Po uruchomieniu zobaczysz komunikat:
+```
+ * Running on http://127.0.0.1:5000
+ * Debug mode: on
+```
+
+### 🆘 Rozwiązywanie problemów
+
+**"Python nie jest rozpoznawany"**
+```bash
+python -m pip install flask beautifulsoup4 requests urllib3 lxml
+```
+
+**Inne błędy:**
+- Sprawdź czy jesteś w folderze z `app.py`
+- Zainstaluj biblioteki pojedynczo: `pip install flask` itd.
+
+**Zatrzymanie aplikacji**: `Ctrl + C`
 
 ## 📖 Jak zacząć
 
