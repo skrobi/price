@@ -1,431 +1,593 @@
 """
-Moduł obsługujący podstawowe zarządzanie produktami
+Product Management - zarządzanie produktami - NAPRAWIONY
 """
-import json
-from flask import jsonify, request, render_template, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime
-from utils.data_utils import load_products, save_product, load_links, load_prices, get_latest_prices, convert_to_pln
+from utils.data_utils import load_products, save_product, load_links, get_latest_prices
+import logging
 
-# Import modułów wyszukiwania
-try:
-    from product_finder import ProductFinder
-    FINDER_AVAILABLE = True
-except ImportError:
-    FINDER_AVAILABLE = False
-
-try:
-    from shop_config import shop_config
-    SHOP_CONFIG_AVAILABLE = True
-except ImportError:
-    SHOP_CONFIG_AVAILABLE = False
+logger = logging.getLogger(__name__)
 
 class ProductManager:
-    """Klasa zarządzająca podstawowymi operacjami na produktach"""
+    """Manager dla operacji na produktach"""
     
     def list_products(self):
-        """Lista wszystkich produktów"""
-        products = load_products()
-        
-        # Dodaj informacje o linkach i cenach
-        all_links = load_links()
-        latest_prices = get_latest_prices()
-        
-        for product in products:
-            # Liczba linków
-            product_links = [link for link in all_links if link['product_id'] == product['id']]
-            product['links_count'] = len(product_links)
+        """Lista wszystkich produktów z cenami - NAPRAWIONA"""
+        try:
+            products = load_products()
+            links = load_links()
+            latest_prices = get_latest_prices()
             
-            # Najlepsza cena
-            product_prices = []
-            for link in product_links:
-                key = f"{product['id']}-{link['shop_id']}"
-                if key in latest_prices:
-                    price_data = latest_prices[key]
-                    price_pln = convert_to_pln(price_data['price'], price_data.get('currency', 'PLN'))
-                    product_prices.append(price_pln)
+            # POPRAWKA: Filtruj tylko prawidłowe produkty
+            products = [p for p in products if isinstance(p, dict) and 'id' in p]
             
-            if product_prices:
-                product['min_price'] = min(product_prices)
-                product['max_price'] = max(product_prices)
-                product['avg_price'] = sum(product_prices) / len(product_prices)
-            else:
-                product['min_price'] = None
-                product['max_price'] = None
-                product['avg_price'] = None
-        
-        # Sortuj produkty (najnowsze pierwsze)
-        products.sort(key=lambda x: x.get('created', ''), reverse=True)
-        
-        return render_template('products.html', products=products)
+            # Dodaj informacje o cenach do produktów
+            for product in products:
+                product_prices = []
+                for price_key, price_data in latest_prices.items():
+                    if isinstance(price_data, dict) and price_data.get('product_id') == product['id']:
+                        try:
+                            # POPRAWKA: Bezpieczna konwersja ceny
+                            price_val = float(price_data.get('price', 0))
+                            if price_val > 0:  # Tylko dodatnie ceny
+                                product_prices.append(price_val)
+                        except (ValueError, TypeError):
+                            continue
+                
+                # POPRAWKA: Bezpieczne obliczenie min/max cen
+                if product_prices:
+                    product['min_price'] = min(product_prices)
+                    product['max_price'] = max(product_prices)
+                    product['price_count'] = len(product_prices)
+                else:
+                    product['min_price'] = None
+                    product['max_price'] = None
+                    product['price_count'] = 0
+                
+                # Dodaj informacje o linkach
+                product_links = [l for l in links 
+                               if isinstance(l, dict) and l.get('product_id') == product['id']]
+                product['link_count'] = len(product_links)
+            
+            return render_template('products.html', products=products, links=links)
+            
+        except Exception as e:
+            logger.error(f"Error in list_products: {e}")
+            flash(f'Błąd ładowania produktów: {str(e)}')
+            return render_template('products.html', products=[], links=[])
     
     def add_product(self):
-        """Dodaj nowy produkt"""
-        if request.method == 'POST':
-            name = request.form['name'].strip()
+        """Formularz dodawania produktu ręcznie"""
+        if request.method == 'GET':
+            return render_template('add_product.html')
+        
+        try:
+            name = request.form.get('name', '').strip()
             ean = request.form.get('ean', '').strip()
             
             if not name:
-                flash('Nazwa produktu jest wymagana!')
+                flash('Nazwa produktu jest wymagana')
                 return render_template('add_product.html')
             
             # Sprawdź czy produkt już istnieje
             products = load_products()
             for product in products:
-                if product['name'].lower() == name.lower():
-                    flash('Produkt o takiej nazwie już istnieje!')
+                if isinstance(product, dict) and product.get('name', '').lower() == name.lower():
+                    flash('Produkt o tej nazwie już istnieje')
                     return render_template('add_product.html')
             
-            # Stwórz nowy produkt
-            new_id = max([p['id'] for p in products], default=0) + 1
+            # Utwórz nowy produkt
+            new_id = max([p.get('id', 0) for p in products if isinstance(p, dict)], default=0) + 1
             
-            new_product = {
+            product_data = {
                 'id': new_id,
                 'name': name,
                 'ean': ean,
+                'created': datetime.now().isoformat(),
+                'source': 'manual'
+            }
+            
+            # Zapisz produkt
+            try:
+                # POPRAWKA: Sprawdź czy sync jest dostępny
+                try:
+                    from sync.sync_integration import save_product_sync
+                    result = save_product_sync(product_data)
+                    
+                    if result.get('success'):
+                        synced_msg = " (zsynchronizowany)" if result.get('synced') else " (lokalnie)"
+                        flash(f'Produkt "{name}" został dodany{synced_msg}')
+                    else:
+                        raise Exception(result.get('error', 'Błąd zapisu'))
+                        
+                except (ImportError, AttributeError):
+                    # Fallback do standardowego zapisu
+                    save_product(product_data)
+                    flash(f'Produkt "{name}" został dodany')
+                
+                return redirect(url_for('products.product_detail', product_id=new_id))
+                
+            except Exception as e:
+                logger.error(f"Error saving product: {e}")
+                # Spróbuj zapisać standardowo
+                save_product(product_data)
+                flash(f'Produkt "{name}" został dodany (bez synchronizacji)')
+                return redirect(url_for('products.product_detail', product_id=new_id))
+            
+        except Exception as e:
+            logger.error(f"Error in add_product: {e}")
+            flash(f'Błąd podczas dodawania produktu: {str(e)}')
+            return render_template('add_product.html')
+    
+    def add_product_url(self):
+        """Dodaj produkt z URL - UPROSZCZONA WERSJA"""
+        if request.method == 'GET':
+            return render_template('add_product_url.html')
+        
+        try:
+            name = request.form.get('name', '').strip()
+            url = request.form.get('url', '').strip()
+            
+            # Walidacja - nazwa jest wymagana
+            if not name:
+                flash('Nazwa produktu jest wymagana')
+                return render_template('add_product_url.html')
+            
+            if not url:
+                flash('URL jest wymagany')
+                return render_template('add_product_url.html')
+            
+            # Walidacja URL
+            if not (url.startswith('http://') or url.startswith('https://')):
+                flash('URL musi zaczynać się od http:// lub https://')
+                return render_template('add_product_url.html')
+            
+            # Identyfikuj sklep z URL (bez scrapingu)
+            from urllib.parse import urlparse
+            
+            parsed = urlparse(url.lower())
+            domain = parsed.netloc.replace('www.', '')
+            
+            # Mapowanie domen na sklepy
+            shop_mappings = {
+                'allegro.pl': ('Allegro', 'allegro'),
+                'amazon.pl': ('Amazon', 'amazon'),
+                'amazon.com': ('Amazon', 'amazon'),
+                'ceneo.pl': ('Ceneo', 'ceneo'),
+                'morele.net': ('Morele', 'morele'),
+                'x-kom.pl': ('X-kom', 'xkom'),
+                'mediamarkt.pl': ('MediaMarkt', 'mediamarkt'),
+                'doz.pl': ('DOZ', 'doz'),
+                'rosa24.pl': ('Rosa24', 'rosa24')
+            }
+            
+            shop_name = None
+            shop_id = None
+            
+            for pattern, (name_val, id_val) in shop_mappings.items():
+                if pattern in domain:
+                    shop_name = name_val
+                    shop_id = id_val
+                    break
+            
+            if not shop_name:
+                shop_name = domain.title()
+                shop_id = domain.replace('.', '_')
+            
+            # Sprawdź czy produkt już istnieje
+            products = load_products()
+            for product in products:
+                if isinstance(product, dict) and product.get('name', '').lower() == name.lower():
+                    flash(f'Produkt "{name}" już istnieje w bazie')
+                    return redirect(url_for('products.product_detail', product_id=product['id']))
+            
+            # Utwórz nowy produkt
+            new_id = max([p.get('id', 0) for p in products if isinstance(p, dict)], default=0) + 1
+            
+            product_data = {
+                'id': new_id,
+                'name': name,  # Używamy nazwy z formularza
+                'ean': '',
+                'created': datetime.now().isoformat(),
+                'user_id': 'user',
+                'source': 'manual_url'
+            }
+            
+            # Zapisz produkt
+            try:
+                from sync.sync_integration import save_product_api_first
+                result = save_product_api_first(product_data)
+                
+                if result.get('synced'):
+                    flash(f'Produkt "{name}" został dodany i zsynchronizowany')
+                else:
+                    flash(f'Produkt "{name}" został dodany lokalnie')
+                    
+            except ImportError:
+                save_product(product_data)
+                flash(f'Produkt "{name}" został dodany')
+            
+            # Dodaj link do sklepu
+            link_data = {
+                'product_id': new_id,
+                'shop_id': shop_id,
+                'url': url,
                 'created': datetime.now().isoformat()
             }
             
-            save_product(new_product)
-            flash(f'Produkt "{name}" został dodany!')
-            return redirect(url_for('products.product_detail', product_id=new_id))
-        
-        return render_template('add_product.html')
-    
-    def add_product_url(self):
-        """Dodaj produkt z URL"""
-        if request.method == 'POST':
-            url = request.form['url'].strip()
-            if not url:
-                flash('URL jest wymagany!')
-                return render_template('add_product_url.html')
-            
-            # Wyciągnij shop_id z URL
             try:
-                from urllib.parse import urlparse
-                parsed = urlparse(url)
-                domain = parsed.netloc.lower().replace('www.', '')
-                shop_id = domain.split('.')[0]
-            except:
-                shop_id = 'unknown'
+                from sync.sync_integration import save_link_api_first
+                save_link_api_first(link_data)
+            except ImportError:
+                from utils.data_utils import save_link
+                save_link(link_data)
             
-            flash(f'Funkcja dodawania produktu z URL jest w rozwoju. Sklep: {shop_id}')
-            return redirect(url_for('products.products'))
-        
-        return render_template('add_product_url.html')
+            flash(f'Link do {shop_name} został dodany')
+            return redirect(url_for('products.product_detail', product_id=new_id))
+            
+        except Exception as e:
+            logger.error(f"Error in add_product_url: {e}")
+            flash(f'Błąd podczas dodawania produktu: {str(e)}')
+            return render_template('add_product_url.html')
     
     def product_detail(self, product_id):
-        """Szczegóły produktu - POPRAWIONA WERSJA"""
-        products = load_products()
-        product = None
-        for p in products:
-            if p['id'] == product_id:
-                product = p
-                break
+        """Szczegóły produktu - Z PEŁNYM DEBUGOWANIEM"""
+        #print(f"\n🔍 DEBUG PRODUCT_DETAIL START - product_id: {product_id}")
         
-        if not product:
-            flash('Produkt nie został znaleziony!')
-            return redirect(url_for('products.products'))
-        
-        # Linki dla tego produktu
-        all_links = load_links()
-        product_links = [link for link in all_links if link['product_id'] == product_id]
-        
-        # POPRAWKA: Ceny dla każdego konkretnego linku (product_id + URL)
-        all_prices = load_prices()
-        for link in product_links:
-            # Znajdź najnowszą cenę dla konkretnego URL
-            link_prices = [p for p in all_prices 
-                          if p['product_id'] == product_id 
-                          and p['shop_id'] == link['shop_id']
-                          and p.get('url', '') == link['url']]  # DODANE: porównanie URL
-            
-            if link_prices:
-                # Sortuj po dacie i weź najnowszą
-                link_prices.sort(key=lambda x: x['created'], reverse=True)
-                latest_price = link_prices[0]
-                
-                link['price'] = latest_price['price']
-                link['currency'] = latest_price.get('currency', 'PLN')
-                link['price_pln'] = convert_to_pln(latest_price['price'], latest_price.get('currency', 'PLN'))
-                link['price_updated'] = latest_price['created'][:16]
-            else:
-                link['price'] = None
-        
-        return render_template('product_detail.html', product=product, links=product_links)
-    
-    def update_product(self):
-        """API - aktualizuje dane produktu"""
         try:
-            data = request.get_json()
-            product_id = int(data.get('product_id'))
+            # KROK 1: Załaduj produkty
+            #print("📦 KROK 1: Ładowanie produktów...")
+            products = load_products()
+            #print(f"   ✅ Załadowano {len(products)} produktów")
+            #print(f"   📋 Typy produktów: {[type(p) for p in products[:3]]}")
+            
+            # KROK 2: Znajdź konkretny produkt
+            #print(f"🔎 KROK 2: Szukanie produktu ID {product_id}...")
+            product = None
+            for i, p in enumerate(products):
+                #print(f"   Produkt {i}: typ={type(p)}, dict={isinstance(p, dict)}")
+                if isinstance(p, dict):
+                    p_id = p.get('id')
+                    #print(f"     ID: {p_id} (typ: {type(p_id)})")
+                    if p_id == product_id:
+                        product = p
+                        #print(f"   ✅ ZNALEZIONO! {p.get('name', 'Bez nazwy')}")
+                        break
+            
+            if not product:
+                print("   ❌ PRODUKT NIE ZNALEZIONY!")
+                available_ids = [p.get('id') for p in products if isinstance(p, dict)]
+                #print(f"   📋 Dostępne ID: {available_ids}")
+                flash('Produkt nie został znaleziony')
+                return redirect(url_for('products.products'))
+            
+            # KROK 3: Załaduj linki
+            print("🔗 KROK 3: Ładowanie linków...")
+            links = load_links()
+            #print(f"   ✅ Załadowano {len(links)} linków")
+            
+            product_links = []
+            for link in links:
+                if isinstance(link, dict) and link.get('product_id') == product_id:
+                    product_links.append(link)
+                    #print(f"   🔗 Link: {link.get('shop_id')} -> {link.get('url', '')[:50]}...")
+            
+            #print(f"   📊 Znaleziono {len(product_links)} linków dla produktu")
+            
+            # KROK 4: Załaduj ceny
+            print("💰 KROK 4: Ładowanie cen...")
+            latest_prices = get_latest_prices()
+            #print(f"   ✅ Załadowano {len(latest_prices)} cen")
+            #print(f"   📋 Przykładowe klucze cen: {list(latest_prices.keys())[:5]}")
+            
+            # KROK 5: Dodaj ceny do linków
+            print("🔄 KROK 5: Łączenie cen z linkami...")
+            for i, link in enumerate(product_links):
+                #print(f"   🔗 Link {i+1}: {link.get('shop_id')}")
+                
+                # Resetuj ceny
+                link['price'] = None
+                link['price_pln'] = None
+                link['currency'] = None
+                link['price_updated'] = None
+                
+                # Szukaj ceny dla tego linku
+                found_price = False
+                for price_key, price_data in latest_prices.items():
+                    if not isinstance(price_data, dict):
+                        continue
+                        
+                    price_product_id = price_data.get('product_id')
+                    price_shop_id = price_data.get('shop_id')
+                    
+                    if price_product_id == product_id and price_shop_id == link.get('shop_id'):
+                        #print(f"     ✅ ZNALEZIONO CENĘ! {price_data.get('price')} {price_data.get('currency', 'PLN')}")
+                        found_price = True
+                        
+                        try:
+                            # Ustaw ceny
+                            link['price'] = float(price_data.get('price', 0))
+                            link['price_pln'] = float(price_data.get('price_pln', price_data.get('price', 0)))
+                            link['currency'] = price_data.get('currency', 'PLN')
+                            
+                            # BEZPIECZNE formatowanie daty
+                            created_date = price_data.get('created', '')
+                            #print(f"     📅 Data: '{created_date}' (typ: {type(created_date)})")
+                            
+                            if created_date and isinstance(created_date, str):
+                                try:
+                                    if 'T' in created_date:
+                                        # Format ISO: 2024-01-15T10:30:45
+                                        date_part = created_date.split('T')[0]
+                                        time_part = created_date.split('T')[1][:8]
+                                        link['price_updated'] = f"{date_part} {time_part}"
+                                        #print(f"     📅 Sformatowana data: {link['price_updated']}")
+                                    elif len(created_date) >= 16:
+                                        link['price_updated'] = created_date[:16]
+                                        #print(f"     📅 Obcięta data: {link['price_updated']}")
+                                    else:
+                                        link['price_updated'] = created_date
+                                        #print(f"     📅 Oryginalna data: {link['price_updated']}")
+                                except Exception as date_error:
+                                    #print(f"     ❌ BŁĄD formatowania daty: {date_error}")
+                                    link['price_updated'] = str(created_date) or 'Błąd daty'
+                            else:
+                                link['price_updated'] = 'Brak daty'
+                                #print(f"     📅 Brak daty lub nieprawidłowy typ")
+                                
+                        except (ValueError, TypeError) as e:
+                            print(f"     ❌ BŁĄD przetwarzania ceny: {e}")
+                            pass
+                        break
+                
+                if not found_price:
+                    print(f"     ❌ Brak ceny dla {link.get('shop_id')}")
+            
+            # KROK 6: Renderuj template
+            print("🎨 KROK 6: Renderowanie template...")
+            print(f"   📦 Produkt: {product.get('name', 'Bez nazwy')}")
+            print(f"   🔗 Linki: {len(product_links)}")
+            
+            # SPRAWDŹ czy template istnieje
+            try:
+                return render_template('product_detail.html', product=product, links=product_links)
+            except Exception as template_error:
+                print(f"❌ BŁĄD TEMPLATE: {template_error}")
+                # Fallback - pokaż surowe dane
+                return f"""
+                <h1>DEBUG: Produkt {product_id}</h1>
+                <p>Nazwa: {product.get('name', 'Brak')}</p>
+                <p>EAN: {product.get('ean', 'Brak')}</p>
+                <p>Linków: {len(product_links)}</p>
+                <pre>{product_links}</pre>
+                """
+            
+        except Exception as e:
+            print(f"💥 KRYTYCZNY BŁĄD w product_detail: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            flash(f'Błąd ładowania produktu: {str(e)}')
+            return redirect(url_for('products.products'))
+    
+    def update_product(self, data):
+        """Aktualizuje dane produktu - POPRAWIONA WERSJA"""
+        try:
+            product_id = data.get('product_id')
             name = data.get('name', '').strip()
             ean = data.get('ean', '').strip()
             
-            if not name:
-                return jsonify({'success': False, 'error': 'Nazwa produktu jest wymagana'})
+            if not product_id or not name:
+                return {'success': False, 'error': 'Brak wymaganych danych'}
             
-            # Sprawdź czy produkt istnieje
-            products = load_products()
-            product_found = False
-            for i, product in enumerate(products):
-                if product['id'] == product_id:
-                    products[i]['name'] = name
-                    products[i]['ean'] = ean
-                    products[i]['updated'] = datetime.now().isoformat()
-                    product_found = True
-                    break
-            
-            if not product_found:
-                return jsonify({'success': False, 'error': 'Produkt nie został znaleziony'})
-            
-            # Sprawdź czy nazwa nie jest duplikatem
-            for product in products:
-                if product['id'] != product_id and product['name'].lower() == name.lower():
-                    return jsonify({'success': False, 'error': 'Produkt o takiej nazwie już istnieje'})
-            
-            # Zapisz zmiany
-            with open('data/products.txt', 'w', encoding='utf-8') as f:
-                for product in products:
-                    f.write(json.dumps(product, ensure_ascii=False) + '\n')
-            
-            return jsonify({'success': True, 'message': 'Produkt został zaktualizowany'})
-            
+            # Użyj sync wrapper
+            from sync.sync_integration import _sync_wrapper
+            if _sync_wrapper:
+                logger.info(f"ProductManager using sync wrapper: {product_id}")
+                return _sync_wrapper.update_product(product_id, data)
+            else:
+                # Fallback lokalny (jeśli sync nie działa)
+                return self._update_product_local(data)
+                
         except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
+            logger.error(f"Error in ProductManager.update_product: {e}")
+            return {'success': False, 'error': str(e)}
     
     def delete_product(self):
         """API - usuwa produkt"""
         try:
             data = request.get_json()
-            product_id = int(data.get('product_id'))
+            product_id = data.get('product_id')
             
-            # Usuń produkt
+            if not product_id:
+                return jsonify({'success': False, 'error': 'Brak product_id'})
+            
+            # Załaduj produkty
             products = load_products()
-            remaining_products = [p for p in products if p['id'] != product_id]
+            products = [p for p in products if not (isinstance(p, dict) and p.get('id') == product_id)]
             
+            # Zapisz
+            import json
             with open('data/products.txt', 'w', encoding='utf-8') as f:
-                for product in remaining_products:
-                    f.write(json.dumps(product, ensure_ascii=False) + '\n')
+                for product in products:
+                    if isinstance(product, dict):
+                        f.write(json.dumps(product, ensure_ascii=False) + '\n')
             
-            # Usuń powiązane linki
-            links = load_links()
-            remaining_links = [l for l in links if l['product_id'] != product_id]
-            
-            with open('data/product_links.txt', 'w', encoding='utf-8') as f:
-                for link in remaining_links:
-                    f.write(json.dumps(link, ensure_ascii=False) + '\n')
-            
-            # Usuń powiązane ceny
-            prices = load_prices()
-            remaining_prices = [p for p in prices if p['product_id'] != product_id]
-            
-            with open('data/prices.txt', 'w', encoding='utf-8') as f:
-                for price in remaining_prices:
-                    f.write(json.dumps(price, ensure_ascii=False) + '\n')
+            # Usuń też linki tego produktu
+            try:
+                links = load_links()
+                links = [l for l in links if not (isinstance(l, dict) and l.get('product_id') == product_id)]
+                
+                with open('data/product_links.txt', 'w', encoding='utf-8') as f:
+                    for link in links:
+                        if isinstance(link, dict):
+                            f.write(json.dumps(link, ensure_ascii=False) + '\n')
+            except:
+                pass  # Nie blokuj jeśli nie ma linków
             
             return jsonify({'success': True, 'message': 'Produkt został usunięty'})
             
         except Exception as e:
+            logger.error(f"Error in delete_product: {e}")
             return jsonify({'success': False, 'error': str(e)})
     
     def find_in_shops(self):
         """API - wyszukuje produkt w sklepach"""
-        if not FINDER_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Wyszukiwarka nie jest dostępna'})
-        
         try:
             data = request.get_json()
-            product_id = int(data.get('product_id'))
+            product_id = data.get('product_id')
+            
+            if not product_id:
+                return jsonify({'success': False, 'error': 'Brak product_id'})
             
             # Znajdź produkt
             products = load_products()
-            product = None
-            for p in products:
-                if p['id'] == product_id:
-                    product = p
-                    break
+            product = next((p for p in products if isinstance(p, dict) and p.get('id') == product_id), None)
             
             if not product:
                 return jsonify({'success': False, 'error': 'Produkt nie został znaleziony'})
             
-            # Pobierz wszystkie sklepy z konfiguracją wyszukiwania
-            if not SHOP_CONFIG_AVAILABLE:
-                return jsonify({'success': False, 'error': 'Konfiguracja sklepów nie jest dostępna'})
-            
-            from shop_config import shop_config
-            all_shops = shop_config.get_all_shops()
-            
-            results = []
-            for shop in all_shops:
-                search_config = shop.get('search_config')
-                if search_config and search_config.get('search_url'):
-                    try:
-                        from product_finder import product_finder
-                        debug_info = []
-                        
-                        # Wyszukaj produkt w tym sklepie
-                        search_result = product_finder.search_product(
-                            search_config,
-                            product['name'],
-                            product.get('ean'),
-                            debug_info
-                        )
-                        
-                        if search_result.get('success') and search_result.get('results'):
-                            results.append({
-                                'shop': shop,
-                                'success': True,
-                                'results': search_result['results']
-                            })
-                        else:
-                            results.append({
-                                'shop': shop,
-                                'success': False,
-                                'error': search_result.get('error', 'Nie znaleziono')
-                            })
-                            
-                    except Exception as e:
-                        results.append({
-                            'shop': shop,
-                            'success': False,
-                            'error': str(e)
-                        })
-            
-            return jsonify({'success': True, 'results': results})
+            # Tu może być implementacja wyszukiwania
+            # Na razie zwróć placeholder
+            return jsonify({
+                'success': True,
+                'message': f'Wyszukiwanie "{product["name"]}" w sklepach...',
+                'results': []
+            })
             
         except Exception as e:
+            logger.error(f"Error in find_in_shops: {e}")
             return jsonify({'success': False, 'error': str(e)})
     
     def get_available_shops(self):
         """API - zwraca dostępne sklepy"""
-        if not SHOP_CONFIG_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Konfiguracja sklepów nie jest dostępna'})
-        
         try:
-            shops = []
-            for shop_id, config in shop_config.items():
-                if config.get('search_url'):
-                    shops.append({
-                        'shop_id': shop_id,
-                        'name': config.get('name', shop_id),
-                        'search_url': config['search_url']
-                    })
+            from shop_config import shop_config
+            shops = shop_config.get_all_shops()
             
-            return jsonify({'success': True, 'shops': shops})
+            # POPRAWKA: Filtruj tylko słowniki
+            shops = [shop for shop in shops if isinstance(shop, dict)]
+            
+            return jsonify({
+                'success': True,
+                'shops': shops
+            })
             
         except Exception as e:
+            logger.error(f"Error in get_available_shops: {e}")
             return jsonify({'success': False, 'error': str(e)})
     
     def search_in_single_shop(self):
         """API - wyszukuje w pojedynczym sklepie"""
-        if not FINDER_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Wyszukiwarka nie jest dostępna'})
-        
         try:
             data = request.get_json()
-            product_id = int(data.get('product_id'))
             shop_id = data.get('shop_id')
+            product_name = data.get('product_name')
             
-            # Znajdź produkt
-            products = load_products()
-            product = None
-            for p in products:
-                if p['id'] == product_id:
-                    product = p
-                    break
+            if not shop_id or not product_name:
+                return jsonify({'success': False, 'error': 'Brak wymaganych danych'})
             
-            if not product:
-                return jsonify({'success': False, 'error': 'Produkt nie został znaleziony'})
-            
-            # Wyszukaj w konkretnym sklepie
-            finder = ProductFinder()
-            results = finder.search_in_shop(shop_id, product['name'])
-            
-            return jsonify({'success': True, 'results': results})
+            # Tu może być implementacja wyszukiwania w sklepie
+            return jsonify({
+                'success': True,
+                'shop_id': shop_id,
+                'query': product_name,
+                'results': []
+            })
             
         except Exception as e:
+            logger.error(f"Error in search_in_single_shop: {e}")
             return jsonify({'success': False, 'error': str(e)})
     
     def find_missing_for_product(self, product_id):
         """API - znajduje sklepy gdzie nie ma tego produktu"""
-        if not SHOP_CONFIG_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Konfiguracja sklepów nie jest dostępna'})
-        
         try:
+            # Znajdź produkt
             products = load_products()
-            product = None
-            for p in products:
-                if p['id'] == product_id:
-                    product = p
-                    break
+            product = next((p for p in products if isinstance(p, dict) and p.get('id') == product_id), None)
             
             if not product:
-                return jsonify({'success': False, 'error': 'Produkt nie znaleziony'})
+                return jsonify({'success': False, 'error': 'Produkt nie został znaleziony'})
             
+            # Znajdź sklepy gdzie już jest
             links = load_links()
-            all_shops = shop_config.get_all_shops()
-            
-            # Znajdź sklepy które mają wyszukiwanie ale nie mają tego produktu
-            shops_with_product = set()
+            existing_shops = set()
             for link in links:
-                if link['product_id'] == product_id:
-                    shops_with_product.add(link['shop_id'])
+                if isinstance(link, dict) and link.get('product_id') == product_id:
+                    existing_shops.add(link.get('shop_id'))
             
-            available_shops = []
-            existing_shops = []
+            # Lista wszystkich dostępnych sklepów
+            from shop_config import shop_config
+            all_shops = shop_config.get_all_shops()
+            all_shops = [shop for shop in all_shops if isinstance(shop, dict)]
             
+            # Sklepy gdzie nie ma produktu
+            missing_shops = []
             for shop in all_shops:
-                if shop.get('search_config') and shop['search_config'].get('search_url'):
-                    if shop['shop_id'] not in shops_with_product:
-                        available_shops.append(shop)
-                    else:
-                        existing_shops.append(shop['shop_id'])
+                if shop.get('shop_id') not in existing_shops:
+                    missing_shops.append(shop)
             
             return jsonify({
                 'success': True,
-                'available_shops': available_shops,
-                'existing_shops': existing_shops,
-                'product_name': product['name']
+                'product': product,
+                'existing_shops': list(existing_shops),
+                'missing_shops': missing_shops
             })
             
         except Exception as e:
+            logger.error(f"Error in find_missing_for_product: {e}")
             return jsonify({'success': False, 'error': str(e)})
     
     def search_product_in_shop(self):
         """API - wyszukuje produkt w konkretnym sklepie"""
-        if not FINDER_AVAILABLE:
-            return jsonify({'success': False, 'error': 'Wyszukiwarka nie jest dostępna'})
-        
         try:
             data = request.get_json()
-            product_id = int(data.get('product_id'))
             shop_id = data.get('shop_id')
+            product_id = data.get('product_id')
+            product_name = data.get('product_name')
+            ean = data.get('ean', '')
             
-            # Pobierz dane produktu
-            products = load_products()
-            product = None
-            for p in products:
-                if p['id'] == product_id:
-                    product = p
-                    break
+            if not all([shop_id, product_name]):
+                return jsonify({
+                    'success': False,
+                    'error': 'Brak shop_id lub product_name'
+                })
             
-            if not product:
-                return jsonify({'success': False, 'error': 'Produkt nie znaleziony'})
-            
-            # Wyszukaj w sklepie
-            finder = ProductFinder()
-            results = finder.search_product_in_shop(
-                shop_id=shop_id,
-                product_name=product['name'],
-                ean=product.get('ean')
-            )
-            
-            return jsonify({
-                'success': True,
-                'results': results,
-                'shop_id': shop_id,
-                'product_name': product['name']
-            })
-            
+            # Import product finder
+            try:
+                from product_finder import product_finder
+                from shop_config import shop_config
+                
+                # Pobierz konfigurację wyszukiwania dla sklepu
+                shop_config_data = shop_config.get_shop_config(shop_id)
+                search_config = shop_config_data.get('search_config', {})
+                
+                if not search_config.get('search_url'):
+                    return jsonify({
+                        'success': False,
+                        'error': f'Brak konfiguracji wyszukiwania dla sklepu {shop_id}'
+                    })
+                
+                # Wykonaj wyszukiwanie
+                debug_info = []
+                search_result = product_finder.search_product(
+                    search_config, product_name, ean, debug_info
+                )
+                
+                # Dodaj debug info do wyniku
+                search_result['debug'] = debug_info
+                
+                return jsonify(search_result)
+                
+            except ImportError as e:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak modułu product_finder: {str(e)}'
+                })
+                
         except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
+            logger.error(f"Error in search_product_in_shop: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })

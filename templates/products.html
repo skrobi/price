@@ -57,9 +57,9 @@
             <td>
                 {% if product.min_price and product.max_price %}
                     {% if product.min_price == product.max_price %}
-                        <strong style="color: #28a745;">{{ "%.2f"|format(product.min_price) }} zł</strong>
+                        <strong style="color: #28a745;">{{ "%.2f"|format(product.min_price|float) }} zł</strong>
                     {% else %}
-                        <span style="color: #28a745;">{{ "%.2f"|format(product.min_price) }} - {{ "%.2f"|format(product.max_price) }} zł</span>
+                        <span style="color: #28a745;">{{ "%.2f"|format(product.min_price|float) }} - {{ "%.2f"|format(product.max_price|float) }} zł</span>
                     {% endif %}
                 {% else %}
                     <em style="color: #999;">Brak cen</em>
@@ -84,7 +84,7 @@
     </tbody>
 </table>
 {% else %}
-<p><em>Brak produktów. <a href="{{ url_for('product.add_product_url') }}">Dodaj pierwszy produkt</a></em></p>
+<p><em>Brak produktów. <a href="{{ url_for('products.add_product_url') }}">Dodaj pierwszy produkt</a></em></p>
 {% endif %}
 
 <!-- Toast notification -->

@@ -34,8 +34,8 @@ class QuantityOptimizer:
         # Sprawdź każdy sklep
         for shop_id, shop_summary in result['shops_summary'].items():
             config = shop_configs.get(shop_id, {})
-            free_from = config.get('delivery_free_from')
-            shipping_cost = config.get('delivery_cost', 0)
+            free_from = float(config.get('delivery_free_from')) if config.get('delivery_free_from') else None
+            shipping_cost = float(config.get('delivery_cost', 0)) if config.get('delivery_cost') else 0
             
             self.log(f"   🏪 Sklep {shop_id}: {shop_summary['subtotal']:.2f} PLN")
             

@@ -541,7 +541,7 @@ async function deleteLink(shopId, url) {
             body: JSON.stringify({
                 product_id: PRODUCT_ID,
                 shop_id: shopId,
-                url: url
+                link_id: linkId
             })
         });
         
