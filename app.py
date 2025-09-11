@@ -1,5 +1,5 @@
 """
-Główna aplikacja Flask - system monitorowania cen z synchronizacją API - NAPRAWIONA
+Główna aplikacja Flask - system monitorowania cen z synchronizacją API - NAPRAWIONA Z LOGAMI
 """
 from flask import Flask, render_template, request, jsonify, redirect, flash
 import os
@@ -40,6 +40,10 @@ SYNC_ENABLED = os.getenv('ENABLE_SYNC', 'true').lower() == 'true'
 sync_manager = None
 startup_sync_completed = False
 
+logger.info(f"=== APPLICATION STARTUP ===")
+logger.info(f"SYNC_ENABLED: {SYNC_ENABLED}")
+logger.info(f"API_BASE_URL: {API_BASE_URL}")
+
 def ensure_directories():
     """Upewnij się że wszystkie wymagane foldery istnieją"""
     directories = [
@@ -52,8 +56,10 @@ def ensure_directories():
             logger.info(f"Created directory: {directory}")
 
 def initialize_sync():
-    """Inicjalizuj system synchronizacji - NAPRAWIONA WERSJA"""
+    """Inicjalizuj system synchronizacji - NAPRAWIONA WERSJA Z LOGAMI"""
     global sync_manager
+    
+    logger.info("=== SYNC INITIALIZATION START ===")
     
     if not SYNC_ENABLED:
         logger.info("Synchronization is disabled by configuration")
@@ -63,39 +69,72 @@ def initialize_sync():
         logger.info(f"Initializing sync manager with API: {API_BASE_URL}")
         
         # Import komponentów sync
+        logger.info("Importing sync components...")
         from sync.sync_manager import SyncManager
         from sync.sync_integration import patch_data_utils, get_sync_status_for_ui, manual_sync_trigger, set_sync_manager
+        logger.info("Sync components imported successfully")
         
         # Utwórz sync manager
+        logger.info("Creating SyncManager instance...")
         sync_manager = SyncManager(API_BASE_URL)
+        logger.info(f"SyncManager created: {sync_manager}")
+        logger.info(f"SyncManager is_online: {getattr(sync_manager, 'is_online', 'UNKNOWN')}")
         
         # Dodaj callback'i dla UI
+        logger.info("Adding status callbacks...")
         sync_manager.add_status_callback(on_sync_status_change)
+        logger.info("Status callbacks added")
         
-        # POPRAWKA: Ustaw sync manager w integracji przed patch'owaniem
-        set_sync_manager(sync_manager)
-        
-        # Patch data_utils functions - TERAZ NAPRAWIONE
+        # Patch data_utils functions
+        logger.info("Patching data_utils functions...")
         patch_success = patch_data_utils()
+        logger.info(f"Patch result: {patch_success}")
+        
         if not patch_success:
             logger.error("Failed to patch data_utils functions")
             return
         
+        # POPRAWKA: Ustaw sync manager TUTAJ (po stworzeniu i patch'owaniu)
+        logger.info("Setting sync manager in integration wrapper...")
+        set_sync_manager(sync_manager)
+        logger.info("Sync manager set in wrapper successfully")
+        
+        # Sprawdź czy wrapper ma sync manager
+        try:
+            from sync.sync_integration import _sync_wrapper
+            if _sync_wrapper:
+                has_manager = _sync_wrapper.sync_manager is not None
+                logger.info(f"Wrapper has sync_manager: {has_manager}")
+                if has_manager:
+                    logger.info(f"Wrapper sync_manager: {_sync_wrapper.sync_manager}")
+                    logger.info(f"Wrapper sync_enabled: {getattr(_sync_wrapper.sync_manager, 'sync_enabled', 'MISSING')}")
+            else:
+                logger.warning("_sync_wrapper is None")
+        except Exception as e:
+            logger.error(f"Error checking wrapper status: {e}")
+        
         logger.info("Sync manager initialized successfully")
         
         # Test połączenia
-        if sync_manager.is_online:
+        if hasattr(sync_manager, 'is_online') and sync_manager.is_online:
             logger.info("✅ API connection successful")
         else:
             logger.warning("⚠️ API connection failed - working in offline mode")
         
+        logger.info("=== SYNC INITIALIZATION COMPLETE ===")
+        
     except Exception as e:
         logger.error(f"Failed to initialize sync manager: {e}")
+        logger.error(f"Exception type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         sync_manager = None
 
 def on_sync_status_change(status: str, details: dict):
     """Callback wywoływany przy zmianie statusu sync'u"""
     global startup_sync_completed
+    
+    logger.info(f"SYNC STATUS CHANGE: {status}, details: {details}")
     
     if status == 'syncing':
         sync_type = details.get('type', 'unknown')
@@ -108,6 +147,7 @@ def on_sync_status_change(status: str, details: dict):
         
         if sync_type == 'startup':
             startup_sync_completed = True
+            logger.info("Startup sync marked as completed")
             
     elif status == 'error':
         error = details.get('error', 'Unknown error')
@@ -128,15 +168,20 @@ def cleanup_on_exit():
 atexit.register(cleanup_on_exit)
 
 # Tworzenie folderów i inicjalizacja
+logger.info("Creating directories...")
 ensure_directories()
+
+logger.info("Initializing sync...")
 initialize_sync()
 
+logger.info("Registering blueprints...")
 # Rejestracja blueprintów
 app.register_blueprint(product_bp)
 app.register_blueprint(price_bp)
 app.register_blueprint(shop_bp)
 app.register_blueprint(basket_bp)
 app.register_blueprint(finder_bp)
+logger.info("Blueprints registered")
 
 @app.route('/')
 def index():
@@ -368,6 +413,20 @@ def debug_sync():
         except Exception as e:
             debug_info['sync_error'] = str(e)
     
+    # Dodaj informacje o wrapper'ze
+    try:
+        from sync.sync_integration import _sync_wrapper, _patched
+        debug_info.update({
+            'wrapper_exists': _sync_wrapper is not None,
+            'wrapper_has_manager': _sync_wrapper.sync_manager is not None if _sync_wrapper else False,
+            'functions_patched': _patched
+        })
+        
+        if _sync_wrapper and _sync_wrapper.sync_manager:
+            debug_info['wrapper_manager_online'] = getattr(_sync_wrapper.sync_manager, 'is_online', 'UNKNOWN')
+    except ImportError:
+        debug_info['wrapper_import_error'] = True
+    
     return jsonify(debug_info)
 
 @app.route('/debug/test_sync', methods=['POST'])
@@ -403,12 +462,26 @@ def debug_patch_status():
         return jsonify({'error': 'Debug mode disabled'}), 403
     
     try:
-        from sync.sync_integration import _patched, _original_functions
+        from sync.sync_integration import _patched, _original_functions, _sync_wrapper
+        
+        wrapper_info = {}
+        if _sync_wrapper:
+            wrapper_info = {
+                'sync_enabled': _sync_wrapper.sync_enabled,
+                'sync_manager_exists': _sync_wrapper.sync_manager is not None,
+                'fallback_to_local': _sync_wrapper.fallback_to_local
+            }
+            
+            if _sync_wrapper.sync_manager:
+                wrapper_info['manager_sync_enabled'] = getattr(_sync_wrapper.sync_manager, 'sync_enabled', 'MISSING')
+                wrapper_info['manager_is_online'] = getattr(_sync_wrapper.sync_manager, 'is_online', 'MISSING')
         
         return jsonify({
             'patched': _patched,
             'original_functions_available': len(_original_functions),
-            'original_functions': list(_original_functions.keys())
+            'original_functions': list(_original_functions.keys()),
+            'wrapper_exists': _sync_wrapper is not None,
+            'wrapper_info': wrapper_info
         })
         
     except ImportError:
@@ -458,12 +531,28 @@ if __name__ == '__main__':
     host = os.getenv('FLASK_HOST', '127.0.0.1')
     port = int(os.getenv('FLASK_PORT', 5000))
     
+    logger.info("=== FLASK APPLICATION STARTUP ===")
     logger.info(f"Starting Flask application in {'DEBUG' if debug_mode else 'PRODUCTION'} mode")
     logger.info(f"Server will run on {host}:{port}")
     logger.info(f"Sync enabled: {SYNC_ENABLED}")
     
     if SYNC_ENABLED:
         logger.info(f"API URL: {API_BASE_URL}")
+        
+        # POPRAWKA: Usuń podwójne ustawienie - sync manager jest już ustawiony w initialize_sync()
+        logger.info("Sync manager already set during initialization")
+        
+        # Dodatkowa weryfikacja
+        try:
+            from sync.sync_integration import _sync_wrapper
+            if _sync_wrapper and _sync_wrapper.sync_manager:
+                logger.info("✅ Sync wrapper has sync manager - ready to go!")
+            else:
+                logger.warning("⚠️ Sync wrapper missing sync manager")
+        except Exception as e:
+            logger.error(f"Error checking sync wrapper: {e}")
+    
+    logger.info("=== STARTING FLASK SERVER ===")
     
     app.run(
         debug=debug_mode,

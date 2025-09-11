@@ -32,11 +32,18 @@ class SyncWrapper:
         self.sync_manager = sync_manager
     
     def _should_sync(self) -> bool:
-        """Sprawdź czy można i należy użyć sync'u"""
-        return (self.sync_enabled and 
+        result = (self.sync_enabled and 
                 self.sync_manager is not None and 
                 hasattr(self.sync_manager, 'sync_enabled') and
                 self.sync_manager.sync_enabled)
+        
+        print(f"DEBUG _should_sync: {result}")
+        print(f"  sync_enabled: {self.sync_enabled}")
+        print(f"  sync_manager exists: {self.sync_manager is not None}")
+        if self.sync_manager:
+            print(f"  manager.sync_enabled: {getattr(self.sync_manager, 'sync_enabled', 'MISSING')}")
+        
+        return result
     
     def _log_sync_action(self, action: str, success: bool, details: str = ""):
         """Loguj akcje synchronizacji"""
@@ -93,6 +100,9 @@ class SyncWrapper:
 
     def update_product(self, product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Aktualizuj produkt - API FIRST"""
+        logger.info(f"SYNC_WRAPPER UPDATE_PRODUCT CALLED: {product_id}, {product_data}")
+        print(f"SYNC WRAPPER UPDATE CALLED!")
+    
         try:
             if self._should_sync():
                 result = update_product_api_first(product_id, product_data)
@@ -739,13 +749,39 @@ def save_shop_config_api_first(shop_config_data: Dict[str, Any]) -> Dict[str, An
         return {'success': False, 'error': str(e)}
 
 def _save_shop_config_local(shop_config_data):
-    """Helper dla lokalnego zapisu shop config"""
+    """Helper dla lokalnego zapisu shop config - BEZ REKURENCJI"""
     try:
         from shop_config import shop_config
         if hasattr(shop_config, '_original_save_shop_config'):
             shop_config._original_save_shop_config(shop_config_data)
         else:
-            shop_config.save_shop_config(shop_config_data)
+            logger.warning("Original save_shop_config not found, using direct file write")
+            
+            # BEZPOŚREDNI ZAPIS - kopiuję logikę z ShopConfigManager.save_shop_config()
+            config_file = 'data/shop_config.txt'
+            shop_id = shop_config_data.get('shop_id')
+            
+            # Załaduj istniejące configs (kopiuję z load_shop_configs)
+            configs = {}
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            config = json.loads(line)
+                            configs[config['shop_id']] = config
+            except FileNotFoundError:
+                configs = {}
+            
+            # Aktualizuj config
+            configs[shop_id] = shop_config_data
+            
+            # Zapisz z powrotem (kopiuję z save_shop_config)
+            with open(config_file, 'w', encoding='utf-8') as f:
+                for config in configs.values():
+                    f.write(json.dumps(config, ensure_ascii=False) + '\n')
+            
+            logger.info(f"Shop config saved directly to file: {shop_id}")
+            
     except Exception as e:
         logger.error(f"Error saving shop config locally: {e}")
         raise
@@ -947,8 +983,12 @@ def unpatch_data_utils():
 def set_sync_manager(sync_manager):
     """Ustaw sync manager w wrapper'ze"""
     global _sync_wrapper
+    print(f"DEBUG: Setting sync manager: {sync_manager}")
     if _sync_wrapper:
         _sync_wrapper.set_sync_manager(sync_manager)
+        print(f"DEBUG: Sync manager set successfully")
+    else:
+        print(f"DEBUG: No sync wrapper to set manager to")
 
 # =============================================================================
 # HELPER FUNCTIONS dla istniejącego kodu
@@ -1148,6 +1188,9 @@ def update_product_api_first(product_id: int, product_data: Dict[str, Any]) -> D
             )
             
             logger.info(f"API RESPONSE: {api_response}")
+            logger.info(f"API RAW RESPONSE: {api_response}")
+            logger.info(f"API RESPONSE TYPE: {type(api_response)}")
+            
             
             if api_response.get('success'):
                 logger.info(f"API SUCCESS - updating locally")
@@ -1234,6 +1277,9 @@ def delete_product_api_first(product_id: int) -> Dict[str, Any]:
 
 def save_shop_config_api_first(shop_config_data: Dict[str, Any]) -> Dict[str, Any]:
     """API-first zapis konfiguracji sklepu"""
+    if shop_config_data.get('_saving_in_progress'):
+        logger.error("Recursion detected in save_shop_config_api_first")
+        return {'success': False, 'error': 'Recursion detected'}
     try:
         if not _sync_wrapper or not _sync_wrapper.sync_manager:
             return _save_with_temp_id(shop_config_data, 'shop_configs', 
@@ -1250,8 +1296,7 @@ def save_shop_config_api_first(shop_config_data: Dict[str, Any]) -> Dict[str, An
                 shop_config_data['synced'] = True
                 shop_config_data['updated'] = datetime.now().isoformat()
                 
-                from shop_config import shop_config
-                shop_config.save_shop_config(shop_config_data)
+                _save_shop_config_local(shop_config_data)
                 
                 return {
                     'success': True,

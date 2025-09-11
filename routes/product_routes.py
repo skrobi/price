@@ -51,26 +51,16 @@ def add_link_to_product(product_id):
 
 @product_bp.route('/update_product', methods=['POST'])
 def update_product():
-    """API - aktualizuje dane produktu - ROZSZERZONE"""
+    """API endpoint - wywołuje ProductManager"""
     try:
         data = request.get_json()
-        product_id = data.get('product_id')
-        
-        if not product_id:
-            return jsonify({'success': False, 'error': 'Brak product_id'})
-        
-        # NOWE: Użyj sync wrapper
-        from sync.sync_integration import _sync_wrapper
-        if _sync_wrapper:
-            data['id'] = product_id  # Dodaj ID do danych
-            result = _sync_wrapper.update_product(product_id, data)
-            return jsonify(result)
-        else:
-            # Fallback do starego kodu
-            return product_manager.update_product()
-            
+        product_id = data.get('product_id')  
+        # POPRAWKA: Dodaj brakujące pole 'id'
+        data['id'] = product_id
+        product_manager = ProductManager()
+        result = product_manager.update_product(data)
+        return jsonify(result)
     except Exception as e:
-        logger.error(f"Error in update_product: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @product_bp.route('/delete_product', methods=['POST'])

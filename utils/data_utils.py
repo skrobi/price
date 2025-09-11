@@ -46,6 +46,11 @@ def save_product(product_data):
 def update_product(product_data):
     """Aktualizuje istniejący produkt"""
     products = load_products()
+    print(f"DEBUG: update_product called with: {product_data}")
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"DATA_UTILS UPDATE_PRODUCT: {product_data}")
     
     for i, product in enumerate(products):
         if product['id'] == product_data['id']:

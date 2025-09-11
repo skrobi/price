@@ -321,6 +321,7 @@ def fetch_prices_ajax():
            'error': str(e)
        })
 
+
 @price_bp.route('/add_manual_price', methods=['POST'])
 def add_manual_price():
    """Endpoint do ręcznego dodawania ceny - API-FIRST VERSION"""
@@ -349,6 +350,7 @@ def add_manual_price():
        # API-FIRST SYNCHRONIZACJA
        try:
            from sync.sync_integration import save_price_api_first
+           print("DEBUG: save_price_api_first imported successfully")
            save_result = save_price_api_first(price_data)
            
            # Increment counter

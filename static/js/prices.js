@@ -483,9 +483,9 @@ async function startAjaxFetching() {
             showNotification('Pobieranie cen zakończone!', 'success');
             
             // Automatyczne odświeżenie strony po 3 sekundach
-            setTimeout(() => {
-                window.location.reload();
-            }, 3000);
+            //setTimeout(() => {
+            //    window.location.reload();
+            //}, 3000);
         }
         
     } catch (error) {

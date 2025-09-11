@@ -343,7 +343,10 @@ class ProductManager:
                 if not found_price:
                     print(f"     ❌ Brak ceny dla {link.get('shop_id')}")
             
-            
+            # KROK 6: Renderuj template
+            print("🎨 KROK 6: Renderowanie template...")
+            print(f"   📦 Produkt: {product.get('name', 'Bez nazwy')}")
+            print(f"   🔗 Linki: {len(product_links)}")
             
             # SPRAWDŹ czy template istnieje
             try:
@@ -367,46 +370,28 @@ class ProductManager:
             flash(f'Błąd ładowania produktu: {str(e)}')
             return redirect(url_for('products.products'))
     
-    def update_product(self):
-        """API - aktualizuje dane produktu"""
+    def update_product(self, data):
+        """Aktualizuje dane produktu - POPRAWIONA WERSJA"""
         try:
-            data = request.get_json()
             product_id = data.get('product_id')
             name = data.get('name', '').strip()
             ean = data.get('ean', '').strip()
             
             if not product_id or not name:
-                return jsonify({'success': False, 'error': 'Brak wymaganych danych'})
+                return {'success': False, 'error': 'Brak wymaganych danych'}
             
-            # Załaduj produkty
-            products = load_products()
-            product_index = None
-            
-            for i, product in enumerate(products):
-                if isinstance(product, dict) and product.get('id') == product_id:
-                    product_index = i
-                    break
-            
-            if product_index is None:
-                return jsonify({'success': False, 'error': 'Produkt nie został znaleziony'})
-            
-            # Aktualizuj dane
-            products[product_index]['name'] = name
-            products[product_index]['ean'] = ean
-            products[product_index]['updated'] = datetime.now().isoformat()
-            
-            # Zapisz
-            import json
-            with open('data/products.txt', 'w', encoding='utf-8') as f:
-                for product in products:
-                    if isinstance(product, dict):
-                        f.write(json.dumps(product, ensure_ascii=False) + '\n')
-            
-            return jsonify({'success': True, 'message': 'Produkt został zaktualizowany'})
-            
+            # Użyj sync wrapper
+            from sync.sync_integration import _sync_wrapper
+            if _sync_wrapper:
+                logger.info(f"ProductManager using sync wrapper: {product_id}")
+                return _sync_wrapper.update_product(product_id, data)
+            else:
+                # Fallback lokalny (jeśli sync nie działa)
+                return self._update_product_local(data)
+                
         except Exception as e:
-            logger.error(f"Error in update_product: {e}")
-            return jsonify({'success': False, 'error': str(e)})
+            logger.error(f"Error in ProductManager.update_product: {e}")
+            return {'success': False, 'error': str(e)}
     
     def delete_product(self):
         """API - usuwa produkt"""

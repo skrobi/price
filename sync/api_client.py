@@ -25,10 +25,14 @@ class CircuitBreaker:
     
     def call(self, func):
         if self.state == 'OPEN':
-            if time.time() - self.last_failure_time > self.timeout:
+            time_since_failure = time.time() - self.last_failure_time
+            logger.info(f"Circuit breaker OPEN - time since failure: {time_since_failure:.1f}s, timeout: {self.timeout}s")
+            
+            if time_since_failure > self.timeout:
                 self.state = 'HALF_OPEN'
                 logger.info("Circuit breaker moving to HALF_OPEN state")
             else:
+                logger.info(f"Circuit breaker staying OPEN - {self.timeout - time_since_failure:.1f}s remaining")
                 raise Exception("Circuit breaker is OPEN - API temporarily unavailable")
         
         try:
@@ -41,11 +45,12 @@ class CircuitBreaker:
         except Exception as e:
             self.failure_count += 1
             self.last_failure_time = time.time()
+            logger.error(f"Circuit breaker failure {self.failure_count}: {e}")
             if self.failure_count >= self.failure_threshold:
                 self.state = 'OPEN'
                 logger.error(f"Circuit breaker opened after {self.failure_count} failures")
             raise
-
+        
 class PriceTrackerAPIClient:
     """Główny klient API z obsługą retry, circuit breaker i offline mode - DOSTOSOWANY DO endpoints/"""
     
