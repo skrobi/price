@@ -164,7 +164,7 @@
                                 </a>
                             </td>
                             <td style="padding: 8px; border: 1px solid #ddd; font-size: 0.85em; color: #666;">
-                                {{ product.created[:10] }}
+                                
                             </td>
                         </tr>
                         {% endfor %}
@@ -342,7 +342,7 @@ function displayAvailableProducts(products) {
             <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
                 <div style="flex: 1;">
                     <strong>${escapeHtml(product.name)}</strong><br>
-                    <small style="color: #666;">ID: ${product.id} | Dodano: ${product.created.substring(0, 10)}</small>
+                    <small style="color: #666;">ID: ${product.id} | Dodano: ${product.created_at.substring(0, 10)}</small>
                     ${product.ean ? `<br><small style="color: #28a745;">EAN: ${product.ean}</small>` : ''}
                 </div>
                 <div style="min-width: 200px; text-align: right;">

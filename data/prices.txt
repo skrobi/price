@@ -9,8 +9,10 @@
 {"product_id": 5, "shop_id": "swiatleku", "price": "21.90", "currency": "PLN", "created": "2025-09-10 09:09:30", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 6, "shop_id": "aptekacurate", "price": "17.46", "currency": "PLN", "created": "2025-09-10 09:09:30", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 6, "shop_id": "swiatleku", "price": "25.02", "currency": "PLN", "created": "2025-09-10 09:09:30", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
-{"product_id": 7, "shop_id": "apteline", "price": "48.49", "currency": "PLN", "created": "2025-09-10 09:09:29", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
+{"product_id": 7, "shop_id": "allegro-aptekarosa", "price": "15.24", "currency": "PLN", "created": "2025-09-10 10:44:35", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
+{"product_id": 7, "shop_id": "apteline", "price": "18.99", "currency": "PLN", "created": "2025-09-10 10:49:39", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 7, "shop_id": "gemini", "price": "16.39", "currency": "PLN", "created": "2025-09-10 09:09:30", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 10, "shop_id": "sklep", "price": "6999.00", "currency": "PLN", "created": "2025-09-10 09:08:28", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 12, "shop_id": "sklep", "price": "6299.00", "currency": "PLN", "created": "2025-09-10 09:08:28", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 13, "shop_id": "centrumrowerowe_pl", "price": "87.99", "currency": "PLN", "created": "2025-09-10 09:08:28", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
+{"product_id": 14, "shop_id": "lozyskaplock_pl", "price": "36.10", "currency": "PLN", "created": "2025-09-10 11:34:54", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}

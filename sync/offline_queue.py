@@ -238,7 +238,7 @@ class OfflineQueue:
     
     def _execute_api_action(self, api_client, action: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Wykonaj konkretną akcję API na podstawie typu
+        Wykonaj konkretną akcję API na podstawie typu - ROZSZERZONA WERSJA
         
         Args:
             api_client: Klient API
@@ -248,8 +248,9 @@ class OfflineQueue:
         Returns:
             Wynik z API
         """
-        # Mapowanie akcji na metody API
+        # ROZSZERZONE mapowanie akcji na metody API
         action_map = {
+            # ========== ISTNIEJĄCE AKCJE ==========
             'add_product': lambda: api_client.add_product(data['name'], data.get('ean', '')),
             'add_link': lambda: api_client.add_link(data['product_id'], data['shop_id'], data['url']),
             'add_price': lambda: api_client.add_price(
@@ -264,7 +265,32 @@ class OfflineQueue:
             ),
             'bulk_add_products': lambda: api_client.bulk_add_products(data['products']),
             'bulk_add_links': lambda: api_client.bulk_add_links(data['links']),
-            'bulk_add_prices': lambda: api_client.bulk_add_prices(data['prices'])
+            'bulk_add_prices': lambda: api_client.bulk_add_prices(data['prices']),
+            
+            # ========== NOWE AKCJE UPDATE/DELETE ==========
+            'update_product': lambda: api_client.update_product(
+                data['product_id'], data['name'], data.get('ean', '')
+            ),
+            'delete_product': lambda: api_client.delete_product(data['product_id']),
+            
+            'update_link': lambda: api_client.update_link(
+                data['link_id'], 
+                data.get('product_id'), 
+                data.get('shop_id'), 
+                data.get('url')
+            ),
+            'delete_link': lambda: api_client.delete_link(data['link_id']),
+            
+            'delete_shop_config': lambda: api_client.delete_shop_config(data['shop_id']),
+            
+            'update_substitute_group': lambda: api_client.update_substitute_group(
+                data['group_id'], 
+                data.get('name'), 
+                data.get('product_ids'),
+                data.get('priority_map'), 
+                data.get('settings')
+            ),
+            'delete_substitute_group': lambda: api_client.delete_substitute_group(data['group_id'])
         }
         
         if action not in action_map:

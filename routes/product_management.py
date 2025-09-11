@@ -120,12 +120,18 @@ class ProductManager:
             return render_template('add_product.html')
     
     def add_product_url(self):
-        """Dodaj produkt z URL - NAPRAWIONA IMPLEMENTACJA"""
+        """Dodaj produkt z URL - UPROSZCZONA WERSJA"""
         if request.method == 'GET':
             return render_template('add_product_url.html')
         
         try:
+            name = request.form.get('name', '').strip()
             url = request.form.get('url', '').strip()
+            
+            # Walidacja - nazwa jest wymagana
+            if not name:
+                flash('Nazwa produktu jest wymagana')
+                return render_template('add_product_url.html')
             
             if not url:
                 flash('URL jest wymagany')
@@ -136,116 +142,43 @@ class ProductManager:
                 flash('URL musi zaczynać się od http:// lub https://')
                 return render_template('add_product_url.html')
             
-            # Identyfikuj sklep z URL
+            # Identyfikuj sklep z URL (bez scrapingu)
             from urllib.parse import urlparse
-            import requests
-            from bs4 import BeautifulSoup
             
             parsed = urlparse(url.lower())
             domain = parsed.netloc.replace('www.', '')
             
             # Mapowanie domen na sklepy
             shop_mappings = {
-                'allegro.pl': 'Allegro',
-                'amazon.pl': 'Amazon',
-                'amazon.com': 'Amazon',
-                'ceneo.pl': 'Ceneo',
-                'morele.net': 'Morele',
-                'x-kom.pl': 'x-kom',
-                'mediamarkt.pl': 'MediaMarkt',
-                'saturn.pl': 'Saturn',
-                'empik.com': 'Empik',
-                'euro.com.pl': 'Euro',
-                'doz.pl': 'DOZ',
-                'rosa24.pl': 'Rosa24',
-                'gemini.pl': 'Gemini'
+                'allegro.pl': ('Allegro', 'allegro'),
+                'amazon.pl': ('Amazon', 'amazon'),
+                'amazon.com': ('Amazon', 'amazon'),
+                'ceneo.pl': ('Ceneo', 'ceneo'),
+                'morele.net': ('Morele', 'morele'),
+                'x-kom.pl': ('X-kom', 'xkom'),
+                'mediamarkt.pl': ('MediaMarkt', 'mediamarkt'),
+                'doz.pl': ('DOZ', 'doz'),
+                'rosa24.pl': ('Rosa24', 'rosa24')
             }
             
             shop_name = None
             shop_id = None
             
-            for pattern, name in shop_mappings.items():
+            for pattern, (name_val, id_val) in shop_mappings.items():
                 if pattern in domain:
-                    shop_name = name
-                    shop_id = pattern.replace('.', '_').replace('_pl', '').replace('_com', '').replace('_net', '')
+                    shop_name = name_val
+                    shop_id = id_val
                     break
             
             if not shop_name:
                 shop_name = domain.title()
                 shop_id = domain.replace('.', '_')
             
-            # Próbuj wyciągnąć nazwę produktu ze strony
-            product_name = None
-            product_ean = None
-            
-            try:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-                
-                response = requests.get(url, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    
-                    # Różne selektory dla nazwy produktu w zależności od sklepu
-                    title_selectors = [
-                        'h1',  # Ogólny selektor
-                        '[data-testid="product-name"]',  # Allegro
-                        '.product-title',  # Ogólny
-                        '.product-name',   # Ogólny
-                        '#productTitle',   # Amazon
-                        '.a-size-large',   # Amazon
-                        '.offer-title h1', # Ceneo
-                        '.prod-name',      # x-kom
-                        '.product-header h1'  # Różne sklepy
-                    ]
-                    
-                    for selector in title_selectors:
-                        title_elem = soup.select_one(selector)
-                        if title_elem:
-                            product_name = title_elem.get_text().strip()
-                            if len(product_name) > 10:  # Sprawdź czy to sensowna nazwa
-                                break
-                    
-                    # Próbuj znaleźć EAN
-                    ean_selectors = [
-                        '[data-testid="ean"]',
-                        '.ean',
-                        '.product-ean',
-                        '[title*="EAN"]',
-                        '[alt*="EAN"]'
-                    ]
-                    
-                    for selector in ean_selectors:
-                        ean_elem = soup.select_one(selector)
-                        if ean_elem:
-                            ean_text = ean_elem.get_text().strip()
-                            # Sprawdź czy to wygląda jak EAN (8 lub 13 cyfr)
-                            if ean_text.isdigit() and len(ean_text) in [8, 13]:
-                                product_ean = ean_text
-                                break
-                            
-            except Exception as e:
-                logger.warning(f"Failed to scrape product details: {e}")
-                flash(f'Ostrzeżenie: Nie udało się pobrać szczegółów ze strony: {str(e)}')
-            
-            # Jeśli nie udało się wyciągnąć nazwy, użyj domyślnej
-            if not product_name:
-                product_name = f"Produkt z {shop_name}"
-            
-            # Czyść nazwę produktu
-            product_name = product_name.replace('\n', ' ').replace('\t', ' ')
-            product_name = ' '.join(product_name.split())  # Usuń wielokrotne spacje
-            
-            # Skróć jeśli za długa
-            if len(product_name) > 200:
-                product_name = product_name[:200] + "..."
-            
             # Sprawdź czy produkt już istnieje
             products = load_products()
             for product in products:
-                if isinstance(product, dict) and product.get('name', '').lower() == product_name.lower():
-                    flash(f'Produkt "{product_name}" już istnieje w bazie')
+                if isinstance(product, dict) and product.get('name', '').lower() == name.lower():
+                    flash(f'Produkt "{name}" już istnieje w bazie')
                     return redirect(url_for('products.product_detail', product_id=product['id']))
             
             # Utwórz nowy produkt
@@ -253,61 +186,43 @@ class ProductManager:
             
             product_data = {
                 'id': new_id,
-                'name': product_name,
-                'ean': product_ean or '',
+                'name': name,  # Używamy nazwy z formularza
+                'ean': '',
                 'created': datetime.now().isoformat(),
-                'source': 'url_import',
-                'origin_url': url,
-                'origin_shop': shop_name
+                'user_id': 'user',
+                'source': 'manual_url'
             }
             
             # Zapisz produkt
             try:
-                try:
-                    from sync.sync_integration import save_product_sync
-                    result = save_product_sync(product_data)
-                    
-                    if result.get('success'):
-                        synced_msg = " (zsynchronizowany)" if result.get('synced') else " (lokalnie)"
-                        flash(f'Produkt "{product_name}" został dodany{synced_msg}')
-                    else:
-                        raise Exception(result.get('error', 'Błąd zapisu'))
-                        
-                except (ImportError, AttributeError):
-                    save_product(product_data)
-                    flash(f'Produkt "{product_name}" został dodany')
+                from sync.sync_integration import save_product_api_first
+                result = save_product_api_first(product_data)
                 
-            except Exception as e:
-                logger.error(f"Error saving product from URL: {e}")
+                if result.get('synced'):
+                    flash(f'Produkt "{name}" został dodany i zsynchronizowany')
+                else:
+                    flash(f'Produkt "{name}" został dodany lokalnie')
+                    
+            except ImportError:
                 save_product(product_data)
-                flash(f'Produkt "{product_name}" został dodany (bez synchronizacji)')
+                flash(f'Produkt "{name}" został dodany')
             
-            # Dodaj też link do sklepu
+            # Dodaj link do sklepu
+            link_data = {
+                'product_id': new_id,
+                'shop_id': shop_id,
+                'url': url,
+                'created': datetime.now().isoformat()
+            }
+            
             try:
+                from sync.sync_integration import save_link_api_first
+                save_link_api_first(link_data)
+            except ImportError:
                 from utils.data_utils import save_link
-                
-                link_data = {
-                    'id': int(datetime.now().timestamp()),
-                    'product_id': new_id,
-                    'shop_id': shop_id,
-                    'url': url,
-                    'created': datetime.now().isoformat(),
-                    'source': 'url_import'
-                }
-                
-                try:
-                    from sync.sync_integration import save_link_sync
-                    save_link_sync(link_data)
-                    flash(f'Link do {shop_name} został dodany')
-                except (ImportError, AttributeError):
-                    save_link(link_data)
-                    flash(f'Link do {shop_name} został dodany')
-                    
-            except Exception as e:
-                logger.error(f"Error saving link: {e}")
-                flash(f'Ostrzeżenie: Nie udało się dodać linku: {str(e)}')
+                save_link(link_data)
             
-            # Przekieruj do szczegółów produktu
+            flash(f'Link do {shop_name} został dodany')
             return redirect(url_for('products.product_detail', product_id=new_id))
             
         except Exception as e:

@@ -82,6 +82,213 @@ class SyncWrapper:
             if original_func:
                 return original_func()
             return []
+        
+    """
+    Rozszerzenia SyncWrapper w sync_integration.py - dodaj do klasy SyncWrapper
+    """
+
+    # =============================================================================
+    # PRODUKTY - UPDATE & DELETE
+    # =============================================================================
+
+    def update_product(self, product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Aktualizuj produkt - API FIRST"""
+        try:
+            if self._should_sync():
+                result = update_product_api_first(product_id, product_data)
+                self._log_sync_action("update_product", result['success'], 
+                                    f"Product: {product_id}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                original_func = _original_functions.get('update_product')
+                if original_func:
+                    original_func(product_data)
+                return {'success': True, 'synced': False, 'fallback': True}
+                    
+        except Exception as e:
+            logger.error(f"Error in update_product with sync: {e}")
+            if self.fallback_to_local:
+                original_func = _original_functions.get('update_product')
+                if original_func:
+                    original_func(product_data)
+                return {'success': True, 'error': str(e), 'fallback': True}
+            else:
+                return {'success': False, 'error': str(e)}
+
+    def delete_product(self, product_id: int) -> Dict[str, Any]:
+        """Usuń produkt - API FIRST"""
+        try:
+            if self._should_sync():
+                result = delete_product_api_first(product_id)
+                self._log_sync_action("delete_product", result['success'], 
+                                    f"Product: {product_id}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                # Fallback - usuń lokalnie
+                from utils.data_utils import load_products
+                products = load_products()
+                products = [p for p in products if p['id'] != product_id]
+                
+                with open('data/products.txt', 'w', encoding='utf-8') as f:
+                    for product in products:
+                        f.write(json.dumps(product, ensure_ascii=False) + '\n')
+                
+                return {'success': True, 'synced': False, 'fallback': True}
+                    
+        except Exception as e:
+            logger.error(f"Error in delete_product with sync: {e}")
+            return {'success': False, 'error': str(e)}
+
+    # =============================================================================
+    # LINKI - UPDATE & DELETE
+    # =============================================================================
+
+    def update_link(self, link_id: int, link_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Aktualizuj link - API FIRST"""
+        try:
+            if self._should_sync():
+                result = update_link_api_first(link_id, link_data)
+                self._log_sync_action("update_link", result['success'], 
+                                    f"Link: {link_id}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                # Fallback - aktualizuj lokalnie
+                links = self.load_links()
+                for i, link in enumerate(links):
+                    if link.get('id') == link_id:
+                        links[i].update(link_data)
+                        links[i]['updated'] = datetime.now().isoformat()
+                        break
+                
+                with open('data/product_links.txt', 'w', encoding='utf-8') as f:
+                    for link in links:
+                        f.write(json.dumps(link, ensure_ascii=False) + '\n')
+                
+                return {'success': True, 'synced': False, 'fallback': True}
+                    
+        except Exception as e:
+            logger.error(f"Error in update_link with sync: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def delete_link(self, link_id: int) -> Dict[str, Any]:
+        """Usuń link - API FIRST"""
+        try:
+            if self._should_sync():
+                result = delete_link_api_first(link_id)
+                self._log_sync_action("delete_link", result['success'], 
+                                    f"Link: {link_id}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                # Fallback - usuń lokalnie
+                links = self.load_links()
+                links = [l for l in links if l.get('id') != link_id]
+                
+                with open('data/product_links.txt', 'w', encoding='utf-8') as f:
+                    for link in links:
+                        f.write(json.dumps(link, ensure_ascii=False) + '\n')
+                
+                return {'success': True, 'synced': False, 'fallback': True}
+                    
+        except Exception as e:
+            logger.error(f"Error in delete_link with sync: {e}")
+            return {'success': False, 'error': str(e)}
+
+    # =============================================================================
+    # SHOP CONFIGS - DELETE
+    # =============================================================================
+
+    def delete_shop_config(self, shop_id: str) -> Dict[str, Any]:
+        """Usuń konfigurację sklepu - API FIRST"""
+        try:
+            if self._should_sync():
+                result = delete_shop_config_api_first(shop_id)
+                self._log_sync_action("delete_shop_config", result['success'], 
+                                    f"Shop: {shop_id}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                # Fallback - usuń lokalnie
+                try:
+                    from shop_config import shop_config
+                    shop_config.delete_shop_config(shop_id)
+                    return {'success': True, 'synced': False, 'fallback': True}
+                except Exception as e:
+                    return {'success': False, 'error': str(e)}
+                    
+        except Exception as e:
+            logger.error(f"Error in delete_shop_config with sync: {e}")
+            return {'success': False, 'error': str(e)}
+
+    # =============================================================================
+    # ZAMIENNOŚCI - SAVE, UPDATE & DELETE
+    # =============================================================================
+
+    def save_substitute_group(self, group_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Zapisz grupę zamienników - API FIRST"""
+        try:
+            if self._should_sync():
+                result = save_substitute_group_api_first(group_data)
+                self._log_sync_action("save_substitute_group", result['success'], 
+                                    f"Group: {group_data.get('name')}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                # Fallback - zapisz lokalnie
+                try:
+                    from substitute_manager import substitute_manager
+                    group_id = substitute_manager.create_substitute_group(
+                        group_data['name'], 
+                        group_data['product_ids']
+                    )
+                    return {'success': True, 'group_id': group_id, 'synced': False, 'fallback': True}
+                except Exception as e:
+                    return {'success': False, 'error': str(e)}
+                    
+        except Exception as e:
+            logger.error(f"Error in save_substitute_group with sync: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def update_substitute_group(self, group_id: str, group_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Aktualizuj grupę zamienników - API FIRST"""
+        try:
+            if self._should_sync():
+                result = update_substitute_group_api_first(group_id, group_data)
+                self._log_sync_action("update_substitute_group", result['success'], 
+                                    f"Group: {group_id}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                # Fallback - aktualizuj lokalnie
+                try:
+                    from substitute_manager import substitute_manager
+                    group_data['group_id'] = group_id
+                    group_data['updated'] = datetime.now().isoformat()
+                    substitute_manager.save_substitute_group(group_data)
+                    return {'success': True, 'synced': False, 'fallback': True}
+                except Exception as e:
+                    return {'success': False, 'error': str(e)}
+                    
+        except Exception as e:
+            logger.error(f"Error in update_substitute_group with sync: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def delete_substitute_group(self, group_id: str) -> Dict[str, Any]:
+        """Usuń grupę zamienników - API FIRST"""
+        try:
+            if self._should_sync():
+                result = delete_substitute_group_api_first(group_id)
+                self._log_sync_action("delete_substitute_group", result['success'], 
+                                    f"Group: {group_id}, Synced: {result.get('synced', False)}")
+                return result
+            else:
+                # Fallback - usuń lokalnie
+                try:
+                    from substitute_manager import substitute_manager
+                    success = substitute_manager.delete_substitute_group(group_id)
+                    return {'success': success, 'synced': False, 'fallback': True}
+                except Exception as e:
+                    return {'success': False, 'error': str(e)}
+                    
+        except Exception as e:
+            logger.error(f"Error in delete_substitute_group with sync: {e}")
+            return {'success': False, 'error': str(e)}
     
     def save_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -533,43 +740,62 @@ def save_shop_config_api_first(shop_config_data: Dict[str, Any]) -> Dict[str, An
 
 def _save_shop_config_local(shop_config_data):
     """Helper dla lokalnego zapisu shop config"""
-    try:
-        from shop_config import shop_config
+    from shop_config import shop_config
+    if hasattr(shop_config, '_original_save_shop_config'):
+        shop_config._original_save_shop_config(shop_config_data)
+    else:
         shop_config.save_shop_config(shop_config_data)
-    except Exception as e:
-        logger.error(f"Error saving shop config locally: {e}")
-        raise
 
 # =============================================================================
 # MONKEY PATCHING - NAPRAWIONE
 # =============================================================================
 
 def _backup_original_functions():
-    """Zabezpiecz oryginalne funkcje przed patch'owaniem"""
+    """Zabezpiecz WSZYSTKIE oryginalne funkcje przed patch'owaniem"""
     global _original_functions
     
     try:
         import utils.data_utils as data_utils
         
-        # POPRAWKA: Zapisz funkcje do globalnego słownika
+        # ROZSZERZONA lista funkcji do backup
         _original_functions = {
+            # Podstawowe funkcje (już były)
             'load_products': data_utils.load_products,
             'save_product': data_utils.save_product,
             'load_links': data_utils.load_links,
             'save_link': data_utils.save_link,
             'load_prices': data_utils.load_prices,
             'save_price': data_utils.save_price,
-            'get_latest_prices': data_utils.get_latest_prices
+            'get_latest_prices': data_utils.get_latest_prices,
+            
+            # NOWE funkcje do backup
+            'update_product': getattr(data_utils, 'update_product', None),
         }
         
-        logger.info("Backed up original data_utils functions")
+        # Dodaj funkcje z innych modułów
+        try:
+            from shop_config import shop_config
+            _original_functions['save_shop_config'] = shop_config.save_shop_config
+            _original_functions['delete_shop_config'] = getattr(shop_config, 'delete_shop_config', None)
+        except ImportError:
+            logger.warning("shop_config module not available for backup")
+        
+        try:
+            from substitute_manager import substitute_manager
+            _original_functions['create_substitute_group'] = substitute_manager.create_substitute_group
+            _original_functions['save_substitute_group'] = substitute_manager.save_substitute_group
+            _original_functions['delete_substitute_group'] = substitute_manager.delete_substitute_group
+        except ImportError:
+            logger.warning("substitute_manager module not available for backup")
+        
+        logger.info("Backed up ALL original functions")
         return True
     except Exception as e:
         logger.error(f"Failed to backup original functions: {e}")
         return False
 
 def patch_data_utils():
-    """Zastąp oryginalne funkcje data_utils funkcjami z sync'iem - NAPRAWIONE"""
+    """ROZSZERZONE patch'owanie - zastąp WSZYSTKIE funkcje"""
     global _sync_wrapper, _patched
     
     if _patched:
@@ -586,10 +812,10 @@ def patch_data_utils():
         if _sync_wrapper is None:
             _sync_wrapper = SyncWrapper()
         
-        # Import modułu data_utils
+        # Import modułów
         import utils.data_utils as data_utils
         
-        # POPRAWKA: Zastąp funkcjami z sync'iem
+        # PODSTAWOWE patch'owanie data_utils
         data_utils.load_products = _sync_wrapper.load_products
         data_utils.save_product = _sync_wrapper.save_product
         data_utils.load_links = _sync_wrapper.load_links
@@ -598,31 +824,120 @@ def patch_data_utils():
         data_utils.save_price = _sync_wrapper.save_price
         data_utils.get_latest_prices = _sync_wrapper.get_latest_prices
         
+        # NOWE patch'owanie - dodaj nowe funkcje jeśli nie istnieją
+        if not hasattr(data_utils, 'update_product'):
+            data_utils.update_product = _sync_wrapper.update_product
+        else:
+            data_utils.update_product = _sync_wrapper.update_product
+        
+        if not hasattr(data_utils, 'delete_product'):
+            data_utils.delete_product = _sync_wrapper.delete_product
+        else:
+            data_utils.delete_product = _sync_wrapper.delete_product
+        
+        if not hasattr(data_utils, 'update_link'):
+            data_utils.update_link = _sync_wrapper.update_link
+        else:
+            data_utils.update_link = _sync_wrapper.update_link
+        
+        if not hasattr(data_utils, 'delete_link'):
+            data_utils.delete_link = _sync_wrapper.delete_link
+        else:
+            data_utils.delete_link = _sync_wrapper.delete_link
+        
+        # PATCH shop_config jeśli dostępny
+        try:
+            from shop_config import shop_config
+            
+            # Backup metod shop_config
+            if not hasattr(shop_config, '_original_save_shop_config'):
+                shop_config._original_save_shop_config = shop_config.save_shop_config
+            
+            # Zastąp metodami z sync
+            shop_config.save_shop_config = lambda config: save_shop_config_api_first(config)
+            
+            if not hasattr(shop_config, 'delete_shop_config'):
+                shop_config.delete_shop_config = _sync_wrapper.delete_shop_config
+            else:
+                shop_config.delete_shop_config = _sync_wrapper.delete_shop_config
+                
+            logger.info("Patched shop_config functions")
+            
+        except ImportError:
+            logger.warning("shop_config module not available for patching")
+        
+        # PATCH substitute_manager jeśli dostępny
+        try:
+            from substitute_manager import substitute_manager
+            
+            # Backup metod substitute_manager
+            if not hasattr(substitute_manager, '_original_create_substitute_group'):
+                substitute_manager._original_create_substitute_group = substitute_manager.create_substitute_group
+                substitute_manager._original_save_substitute_group = substitute_manager.save_substitute_group
+                substitute_manager._original_delete_substitute_group = substitute_manager.delete_substitute_group
+            
+            # Zastąp metodami z sync
+            substitute_manager.create_substitute_group = lambda name, products: _sync_wrapper.save_substitute_group({
+                'name': name, 'product_ids': products
+            })
+            substitute_manager.save_substitute_group = _sync_wrapper.save_substitute_group
+            substitute_manager.delete_substitute_group = _sync_wrapper.delete_substitute_group
+            
+            logger.info("Patched substitute_manager functions")
+            
+        except ImportError:
+            logger.warning("substitute_manager module not available for patching")
+        
         _patched = True
-        logger.info("Successfully patched data_utils functions with sync support")
+        logger.info("Successfully patched ALL functions with sync support")
         return True
         
     except Exception as e:
-        logger.error(f"Error patching data_utils: {e}")
+        logger.error(f"Error patching functions: {e}")
         return False
 
 def unpatch_data_utils():
-    """Przywróć oryginalne funkcje data_utils"""
+    """Przywróć WSZYSTKIE oryginalne funkcje"""
     global _patched
     
     try:
         import utils.data_utils as data_utils
         
-        # Przywróć oryginalne funkcje z globalnego słownika
+        # Przywróć oryginalne funkcje data_utils z globalnego słownika
         for func_name, original_func in _original_functions.items():
-            setattr(data_utils, func_name, original_func)
+            if original_func and func_name.startswith(('load_', 'save_', 'get_', 'update_', 'delete_')):
+                if hasattr(data_utils, func_name):
+                    setattr(data_utils, func_name, original_func)
+        
+        # Przywróć shop_config
+        try:
+            from shop_config import shop_config
+            if hasattr(shop_config, '_original_save_shop_config'):
+                shop_config.save_shop_config = shop_config._original_save_shop_config
+                delattr(shop_config, '_original_save_shop_config')
+        except ImportError:
+            pass
+        
+        # Przywróć substitute_manager
+        try:
+            from substitute_manager import substitute_manager
+            if hasattr(substitute_manager, '_original_create_substitute_group'):
+                substitute_manager.create_substitute_group = substitute_manager._original_create_substitute_group
+                substitute_manager.save_substitute_group = substitute_manager._original_save_substitute_group
+                substitute_manager.delete_substitute_group = substitute_manager._original_delete_substitute_group
+                
+                delattr(substitute_manager, '_original_create_substitute_group')
+                delattr(substitute_manager, '_original_save_substitute_group')
+                delattr(substitute_manager, '_original_delete_substitute_group')
+        except ImportError:
+            pass
         
         _patched = False
-        logger.info("Restored original data_utils functions")
+        logger.info("Restored ALL original functions")
         return True
         
     except Exception as e:
-        logger.error(f"Error unpatching data_utils: {e}")
+        logger.error(f"Error unpatching functions: {e}")
         return False
 
 def set_sync_manager(sync_manager):
@@ -801,6 +1116,553 @@ def reset_sync_state():
     except Exception as e:
         logger.error(f"Error resetting sync state: {e}")
         return False
+"""
+Brakujące funkcje API-first do implementacji
+"""
+
+# =============================================================================
+# 1. PRODUKTY - EDYCJA I USUWANIE
+# =============================================================================
+
+def update_product_api_first(product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
+    """API-first aktualizacja produktu"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _fallback_update_product_local(product_id, product_data)
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.update_product(product_id, product_data)
+            
+            if api_response.get('success'):
+                # 2. POTEM zapisz lokalnie
+                products = load_products()
+                for i, product in enumerate(products):
+                    if product['id'] == product_id:
+                        products[i].update(product_data)
+                        products[i]['updated'] = datetime.now().isoformat()
+                        products[i]['synced'] = True
+                        break
+                
+                # Zapisz zaktualizowane produkty
+                with open('data/products.txt', 'w', encoding='utf-8') as f:
+                    for product in products:
+                        f.write(json.dumps(product, ensure_ascii=False) + '\n')
+                
+                return {
+                    'success': True,
+                    'product_id': product_id,
+                    'synced': True,
+                    'message': 'Product updated via API'
+                }
+            else:
+                # API error - fallback offline
+                return _save_with_temp_update(product_id, product_data)
+        else:
+            # API offline
+            return _save_with_temp_update(product_id, product_data)
+            
+    except Exception as e:
+        logger.error(f"Error in update_product_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+def delete_product_api_first(product_id: int) -> Dict[str, Any]:
+    """API-first usuwanie produktu"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _fallback_delete_product_local(product_id)
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.delete_product(product_id)
+            
+            if api_response.get('success'):
+                # 2. POTEM usuń lokalnie
+                products = load_products()
+                products = [p for p in products if p['id'] != product_id]
+                
+                # Zapisz bez usuniętego produktu
+                with open('data/products.txt', 'w', encoding='utf-8') as f:
+                    for product in products:
+                        f.write(json.dumps(product, ensure_ascii=False) + '\n')
+                
+                # Usuń też powiązane linki i ceny
+                _cleanup_product_references(product_id)
+                
+                return {
+                    'success': True,
+                    'product_id': product_id,
+                    'synced': True,
+                    'message': 'Product deleted via API'
+                }
+            else:
+                # API error - dodaj do offline queue jako "delete"
+                offline_queue.add_to_queue('delete_product', {'product_id': product_id}, priority=1)
+                return {
+                    'success': True,
+                    'product_id': product_id,
+                    'synced': False,
+                    'queued': True,
+                    'message': 'Product deletion queued for API sync'
+                }
+        else:
+            # API offline - dodaj do queue
+            offline_queue.add_to_queue('delete_product', {'product_id': product_id}, priority=1)
+            return {
+                'success': True,
+                'product_id': product_id,
+                'synced': False,
+                'queued': True,
+                'message': 'Product deletion queued (API offline)'
+            }
+            
+    except Exception as e:
+        logger.error(f"Error in delete_product_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+# =============================================================================
+# 2. SKLEPY - DODAWANIE, EDYCJA, USUWANIE
+# =============================================================================
+
+def save_shop_config_api_first(shop_config_data: Dict[str, Any]) -> Dict[str, Any]:
+    """API-first zapis konfiguracji sklepu"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _save_with_temp_id(shop_config_data, 'shop_configs', 
+                         lambda data: _save_shop_config_local(data))
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.update_shop_config(shop_config_data)
+            
+            if api_response.get('success'):
+                # 2. POTEM zapisz lokalnie
+                shop_config_data['synced'] = True
+                shop_config_data['updated'] = datetime.now().isoformat()
+                
+                from shop_config import shop_config
+                shop_config.save_shop_config(shop_config_data)
+                
+                return {
+                    'success': True,
+                    'shop_id': shop_config_data.get('shop_id'),
+                    'synced': True,
+                    'message': 'Shop config saved via API'
+                }
+            else:
+                # API error - fallback offline
+                return _save_with_temp_shop_config(shop_config_data)
+        else:
+            # API offline
+            return _save_with_temp_shop_config(shop_config_data)
+            
+    except Exception as e:
+        logger.error(f"Error in save_shop_config_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+def delete_shop_config_api_first(shop_id: str) -> Dict[str, Any]:
+    """API-first usuwanie konfiguracji sklepu"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            try:
+                from shop_config import shop_config
+                shop_config.delete_shop_config(shop_id)
+                return {'success': True, 'synced': False, 'fallback': True}
+            except Exception as e:
+                return {'success': False, 'error': str(e)}
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.delete_shop_config(shop_id)
+            
+            if api_response.get('success'):
+                # 2. POTEM usuń lokalnie
+                from shop_config import shop_config
+                shop_config.delete_shop_config(shop_id)
+                
+                return {
+                    'success': True,
+                    'shop_id': shop_id,
+                    'synced': True,
+                    'message': 'Shop config deleted via API'
+                }
+            else:
+                # API error - dodaj do offline queue
+                offline_queue.add_to_queue('delete_shop_config', {'shop_id': shop_id}, priority=1)
+                return {
+                    'success': True,
+                    'shop_id': shop_id,
+                    'synced': False,
+                    'queued': True,
+                    'message': 'Shop config deletion queued'
+                }
+        else:
+            # API offline
+            offline_queue.add_to_queue('delete_shop_config', {'shop_id': shop_id}, priority=1)
+            return {
+                'success': True,
+                'shop_id': shop_id,
+                'synced': False,
+                'queued': True,
+                'message': 'Shop config deletion queued (API offline)'
+            }
+            
+    except Exception as e:
+        logger.error(f"Error in delete_shop_config_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+# =============================================================================
+# 3. LINKI - EDYCJA I USUWANIE
+# =============================================================================
+
+def update_link_api_first(link_id: int, link_data: Dict[str, Any]) -> Dict[str, Any]:
+    """API-first aktualizacja linku"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _fallback_update_link_local(link_id, link_data)
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.update_link(link_id, link_data)
+            
+            if api_response.get('success'):
+                # 2. POTEM zapisz lokalnie
+                links = load_links()
+                for i, link in enumerate(links):
+                    if link.get('id') == link_id:
+                        links[i].update(link_data)
+                        links[i]['updated'] = datetime.now().isoformat()
+                        links[i]['synced'] = True
+                        break
+                
+                # Zapisz zaktualizowane linki
+                with open('data/product_links.txt', 'w', encoding='utf-8') as f:
+                    for link in links:
+                        f.write(json.dumps(link, ensure_ascii=False) + '\n')
+                
+                return {
+                    'success': True,
+                    'link_id': link_id,
+                    'synced': True,
+                    'message': 'Link updated via API'
+                }
+            else:
+                # API error - fallback offline
+                return _save_with_temp_link_update(link_id, link_data)
+        else:
+            # API offline
+            return _save_with_temp_link_update(link_id, link_data)
+            
+    except Exception as e:
+        logger.error(f"Error in update_link_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+def delete_link_api_first(link_id: int) -> Dict[str, Any]:
+    """API-first usuwanie linku"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _fallback_delete_link_local(link_id)
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.delete_link(link_id)
+            
+            if api_response.get('success'):
+                # 2. POTEM usuń lokalnie
+                links = load_links()
+                links = [l for l in links if l.get('id') != link_id]
+                
+                # Zapisz bez usuniętego linku
+                with open('data/product_links.txt', 'w', encoding='utf-8') as f:
+                    for link in links:
+                        f.write(json.dumps(link, ensure_ascii=False) + '\n')
+                
+                return {
+                    'success': True,
+                    'link_id': link_id,
+                    'synced': True,
+                    'message': 'Link deleted via API'
+                }
+            else:
+                # API error - dodaj do offline queue
+                offline_queue.add_to_queue('delete_link', {'link_id': link_id}, priority=2)
+                return {
+                    'success': True,
+                    'link_id': link_id,
+                    'synced': False,
+                    'queued': True,
+                    'message': 'Link deletion queued'
+                }
+        else:
+            # API offline
+            offline_queue.add_to_queue('delete_link', {'link_id': link_id}, priority=2)
+            return {
+                'success': True,
+                'link_id': link_id,
+                'synced': False,
+                'queued': True,
+                'message': 'Link deletion queued (API offline)'
+            }
+            
+    except Exception as e:
+        logger.error(f"Error in delete_link_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+# =============================================================================
+# 4. ZAMIENNOŚCI - ZAPIS I EDYCJA
+# =============================================================================
+
+def save_substitute_group_api_first(group_data: Dict[str, Any]) -> Dict[str, Any]:
+    """API-first zapis grupy zamienników"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _save_with_temp_id(shop_config_data, 'shop_configs', 
+                         lambda data: _save_shop_config_local(data))
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.add_substitute_group(
+                group_data['name'],
+                group_data['product_ids'],
+                group_data.get('priority_map'),
+                group_data.get('settings')
+            )
+            
+            if api_response.get('success'):
+                # 2. Użyj group_id z API
+                group_data['group_id'] = api_response['group_id']
+                group_data['synced'] = True
+                group_data['created'] = datetime.now().isoformat()
+                
+                # 3. POTEM zapisz lokalnie
+                from substitute_manager import substitute_manager
+                substitute_manager.save_substitute_group(group_data)
+                
+                return {
+                    'success': True,
+                    'group_id': api_response['group_id'],
+                    'synced': True,
+                    'message': 'Substitute group saved via API'
+                }
+            else:
+                # API error - fallback offline
+                return _save_with_temp_substitute_group(group_data)
+        else:
+            # API offline
+            return _save_with_temp_substitute_group(group_data)
+            
+    except Exception as e:
+        logger.error(f"Error in save_substitute_group_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+def update_substitute_group_api_first(group_id: str, group_data: Dict[str, Any]) -> Dict[str, Any]:
+    """API-first aktualizacja grupy zamienników"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _fallback_update_substitute_group_local(group_id, group_data)
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.update_substitute_group(group_id, group_data)
+            
+            if api_response.get('success'):
+                # 2. POTEM zapisz lokalnie
+                group_data['group_id'] = group_id
+                group_data['updated'] = datetime.now().isoformat()
+                group_data['synced'] = True
+                
+                from substitute_manager import substitute_manager
+                substitute_manager.save_substitute_group(group_data)
+                
+                return {
+                    'success': True,
+                    'group_id': group_id,
+                    'synced': True,
+                    'message': 'Substitute group updated via API'
+                }
+            else:
+                # API error - fallback offline
+                return _save_with_temp_substitute_group_update(group_id, group_data)
+        else:
+            # API offline
+            return _save_with_temp_substitute_group_update(group_id, group_data)
+            
+    except Exception as e:
+        logger.error(f"Error in update_substitute_group_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+def delete_substitute_group_api_first(group_id: str) -> Dict[str, Any]:
+    """API-first usuwanie grupy zamienników"""
+    try:
+        if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            return _fallback_delete_substitute_group_local(group_id)
+        
+        sync_manager = _sync_wrapper.sync_manager
+        
+        if sync_manager.is_online and sync_manager.api_client:
+            # 1. NAJPIERW API
+            api_response = sync_manager.api_client.delete_substitute_group(group_id)
+            
+            if api_response.get('success'):
+                # 2. POTEM usuń lokalnie
+                from substitute_manager import substitute_manager
+                substitute_manager.delete_substitute_group(group_id)
+                
+                return {
+                    'success': True,
+                    'group_id': group_id,
+                    'synced': True,
+                    'message': 'Substitute group deleted via API'
+                }
+            else:
+                # API error - dodaj do offline queue
+                offline_queue.add_to_queue('delete_substitute_group', {'group_id': group_id}, priority=1)
+                return {
+                    'success': True,
+                    'group_id': group_id,
+                    'synced': False,
+                    'queued': True,
+                    'message': 'Substitute group deletion queued'
+                }
+        else:
+            # API offline
+            offline_queue.add_to_queue('delete_substitute_group', {'group_id': group_id}, priority=1)
+            return {
+                'success': True,
+                'group_id': group_id,
+                'synced': False,
+                'queued': True,
+                'message': 'Substitute group deletion queued (API offline)'
+            }
+            
+    except Exception as e:
+        logger.error(f"Error in delete_substitute_group_api_first: {e}")
+        return {'success': False, 'error': str(e)}
+
+# =============================================================================
+# 5. POMOCNICZE FUNKCJE FALLBACK
+# =============================================================================
+
+def _fallback_update_product_local(product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Fallback - aktualizacja produktu lokalnie"""
+    try:
+        from utils.data_utils import update_product
+        product_data['id'] = product_id
+        product_data['updated'] = datetime.now().isoformat()
+        product_data['needs_sync'] = True
+        
+        update_product(product_data)
+        
+        return {
+            'success': True,
+            'product_id': product_id,
+            'synced': False,
+            'fallback': True,
+            'message': 'Product updated locally (API unavailable)'
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+def _fallback_delete_product_local(product_id: int) -> Dict[str, Any]:
+    """Fallback - usuwanie produktu lokalnie"""
+    try:
+        products = load_products()
+        products = [p for p in products if p['id'] != product_id]
+        
+        with open('data/products.txt', 'w', encoding='utf-8') as f:
+            for product in products:
+                f.write(json.dumps(product, ensure_ascii=False) + '\n')
+        
+        # Cleanup related data
+        _cleanup_product_references(product_id)
+        
+        return {
+            'success': True,
+            'product_id': product_id,
+            'synced': False,
+            'fallback': True,
+            'message': 'Product deleted locally (API unavailable)'
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+def _cleanup_product_references(product_id: int):
+    """Usuń wszystkie referencje do produktu"""
+    try:
+        # Usuń linki
+        links = load_links()
+        links = [l for l in links if l.get('product_id') != product_id]
+        
+        with open('data/product_links.txt', 'w', encoding='utf-8') as f:
+            for link in links:
+                f.write(json.dumps(link, ensure_ascii=False) + '\n')
+        
+        # Usuń ceny
+        prices = load_prices()
+        prices = [p for p in prices if p.get('product_id') != product_id]
+        
+        with open('data/prices.txt', 'w', encoding='utf-8') as f:
+            for price in prices:
+                f.write(json.dumps(price, ensure_ascii=False) + '\n')
+        
+        # Usuń z grup zamienników
+        try:
+            from substitute_manager import substitute_manager
+            substitute_manager.remove_product_from_all_groups(product_id)
+        except ImportError:
+            pass
+            
+    except Exception as e:
+        logger.error(f"Error cleaning up product references: {e}")
+
+def _save_with_temp_update(product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Zapisz aktualizację offline z oznaczeniem do sync"""
+    try:
+        # Dodaj do offline queue
+        update_data = {'product_id': product_id, **product_data}
+        offline_queue.add_to_queue('update_product', update_data, priority=1)
+        
+        # Zapisz lokalnie
+        products = load_products()
+        for i, product in enumerate(products):
+            if product['id'] == product_id:
+                products[i].update(product_data)
+                products[i]['updated'] = datetime.now().isoformat()
+                products[i]['needs_sync'] = True
+                break
+        
+        with open('data/products.txt', 'w', encoding='utf-8') as f:
+            for product in products:
+                f.write(json.dumps(product, ensure_ascii=False) + '\n')
+        
+        return {
+            'success': True,
+            'product_id': product_id,
+            'synced': False,
+            'queued': True,
+            'message': 'Product update queued for API sync'
+        }
+        
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+# Dodaj podobne funkcje dla _save_with_temp_shop_config, _save_with_temp_substitute_group itp.
 
 # =============================================================================
 # EXPORTY dla łatwego importu
@@ -809,14 +1671,24 @@ def reset_sync_state():
 __all__ = [
     # Main functions
     'patch_data_utils',
-    'unpatch_data_utils',
+    'unpatch_data_utils', 
     'set_sync_manager',
     
-    # API-first functions
+    # API-first functions (istniejące)
     'save_product_api_first',
     'save_link_api_first',
     'save_price_api_first',
     'save_shop_config_api_first',
+    
+    # NOWE API-first functions
+    'update_product_api_first',
+    'delete_product_api_first',
+    'update_link_api_first',
+    'delete_link_api_first',
+    'delete_shop_config_api_first',
+    'save_substitute_group_api_first',
+    'update_substitute_group_api_first',
+    'delete_substitute_group_api_first',
     
     # Helper functions
     'ensure_sync_ready',

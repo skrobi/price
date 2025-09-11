@@ -466,6 +466,8 @@ class PriceTrackerAPIClient:
                 'is_online': False,
                 'last_check': self.last_health_check.isoformat() if self.last_health_check else None
             }
+            
+    
     
     def test_all_endpoints(self) -> Dict[str, Any]:
         """Test wszystkich endpointów PHP"""
@@ -500,3 +502,137 @@ class PriceTrackerAPIClient:
                 }
         
         return results
+    
+    """
+    Brakujące metody w PriceTrackerAPIClient - do dodania do api_client.py
+    """
+
+    # =============================================================================
+    # PRODUCTS - UPDATE & DELETE (dodaj do klasy PriceTrackerAPIClient)
+    # =============================================================================
+
+    def update_product(self, product_id: int, name: str, ean: str = '') -> Dict[str, Any]:
+        """Aktualizuj produkt - POST"""
+        data = {
+            'product_id': product_id,
+            'name': name,
+            'ean': ean
+        }
+        return self._request_with_retry('POST', '/products', params={'action': 'update'}, json=data)
+
+    def delete_product(self, product_id: int) -> Dict[str, Any]:
+        """Usuń produkt - POST"""
+        data = {
+            'product_id': product_id
+        }
+        return self._request_with_retry('POST', '/products', params={'action': 'delete'}, json=data)
+
+    # =============================================================================
+    # LINKS - UPDATE & DELETE
+    # =============================================================================
+
+    def update_link(self, link_id: int, product_id: int = None, shop_id: str = None, url: str = None) -> Dict[str, Any]:
+        """Aktualizuj link - POST"""
+        data = {
+            'link_id': link_id
+        }
+        if product_id is not None:
+            data['product_id'] = product_id
+        if shop_id is not None:
+            data['shop_id'] = shop_id
+        if url is not None:
+            data['url'] = url
+        
+        return self._request_with_retry('POST', '/links', params={'action': 'update'}, json=data)
+
+    def delete_link(self, link_id: int) -> Dict[str, Any]:
+        """Usuń link - POST"""
+        data = {
+            'link_id': link_id
+        }
+        return self._request_with_retry('POST', '/links', params={'action': 'delete'}, json=data)
+
+    # =============================================================================
+    # SHOP CONFIGS - DELETE
+    # =============================================================================
+
+    def delete_shop_config(self, shop_id: str) -> Dict[str, Any]:
+        """Usuń konfigurację sklepu - POST"""
+        data = {
+            'shop_id': shop_id
+        }
+        return self._request_with_retry('POST', '/shop_configs', params={'action': 'delete'}, json=data)
+
+    # =============================================================================
+    # SUBSTITUTES - UPDATE & DELETE
+    # =============================================================================
+
+    def update_substitute_group(self, group_id: str, name: str = None, product_ids: List[int] = None,
+                            priority_map: Optional[Dict[str, int]] = None,
+                            settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Aktualizuj grupę zamienników - POST"""
+        data = {
+            'group_id': group_id
+        }
+        if name is not None:
+            data['name'] = name
+        if product_ids is not None:
+            data['product_ids'] = product_ids
+        if priority_map is not None:
+            data['priority_map'] = priority_map
+        if settings is not None:
+            data['settings'] = settings
+        
+        return self._request_with_retry('POST', '/substitutes', params={'action': 'update'}, json=data)
+
+    # delete_substitute_group już istnieje
+
+    # =============================================================================
+    # ROZSZERZ _execute_api_action w offline_queue.py
+    # =============================================================================
+
+    def _execute_api_action_extended(self, api_client, action: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Rozszerzona wersja _execute_api_action z obsługą wszystkich operacji
+        """
+        # Mapowanie akcji na metody API
+        action_map = {
+            # Existing actions
+            'add_product': lambda: api_client.add_product(data['name'], data.get('ean', '')),
+            'add_link': lambda: api_client.add_link(data['product_id'], data['shop_id'], data['url']),
+            'add_price': lambda: api_client.add_price(
+                data['product_id'], data['shop_id'], data['price'],
+                data.get('currency', 'PLN'), data.get('price_type', 'scraped'),
+                data.get('url', ''), data.get('source', 'offline_queue')
+            ),
+            'update_shop_config': lambda: api_client.update_shop_config(data),
+            'add_substitute_group': lambda: api_client.add_substitute_group(
+                data['name'], data['product_ids'],
+                data.get('priority_map'), data.get('settings')
+            ),
+            'bulk_add_products': lambda: api_client.bulk_add_products(data['products']),
+            'bulk_add_links': lambda: api_client.bulk_add_links(data['links']),
+            'bulk_add_prices': lambda: api_client.bulk_add_prices(data['prices']),
+            
+            # NEW ACTIONS - dodane
+            'update_product': lambda: api_client.update_product(
+                data['product_id'], data['name'], data.get('ean', '')
+            ),
+            'delete_product': lambda: api_client.delete_product(data['product_id']),
+            'update_link': lambda: api_client.update_link(
+                data['link_id'], data.get('product_id'), 
+                data.get('shop_id'), data.get('url')
+            ),
+            'delete_link': lambda: api_client.delete_link(data['link_id']),
+            'delete_shop_config': lambda: api_client.delete_shop_config(data['shop_id']),
+            'update_substitute_group': lambda: api_client.update_substitute_group(
+                data['group_id'], data.get('name'), data.get('product_ids'),
+                data.get('priority_map'), data.get('settings')
+            ),
+            'delete_substitute_group': lambda: api_client.delete_substitute_group(data['group_id'])
+        }
+        
+        if action not in action_map:
+            raise ValueError(f"Unknown action: {action}")
+        
+        return action_map[action]()

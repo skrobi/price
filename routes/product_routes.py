@@ -9,6 +9,9 @@ from utils.data_utils import load_products, save_product, load_links, load_price
 from .product_management import ProductManager
 from .product_links import ProductLinksManager
 from .product_pricing import ProductPricingManager
+import json
+import logging
+logger = logging.getLogger(__name__)
 
 product_bp = Blueprint('products', __name__)
 
@@ -48,13 +51,62 @@ def add_link_to_product(product_id):
 
 @product_bp.route('/update_product', methods=['POST'])
 def update_product():
-    """API - aktualizuje dane produktu"""
-    return product_manager.update_product()
+    """API - aktualizuje dane produktu - ROZSZERZONE"""
+    try:
+        data = request.get_json()
+        product_id = data.get('product_id')
+        
+        if not product_id:
+            return jsonify({'success': False, 'error': 'Brak product_id'})
+        
+        # NOWE: Użyj sync wrapper
+        from sync.sync_integration import _sync_wrapper
+        if _sync_wrapper:
+            data['id'] = product_id  # Dodaj ID do danych
+            result = _sync_wrapper.update_product(product_id, data)
+            return jsonify(result)
+        else:
+            # Fallback do starego kodu
+            return product_manager.update_product()
+            
+    except Exception as e:
+        logger.error(f"Error in update_product: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @product_bp.route('/delete_product', methods=['POST'])
 def delete_product():
     """API - usuwa produkt"""
-    return product_manager.delete_product()
+    try:
+        data = request.get_json()
+        product_id = data.get('product_id')
+        
+        if not product_id:
+            return jsonify({'success': False, 'error': 'Brak product_id'})
+        
+        # Użyj sync wrapper jeśli dostępny
+        try:
+            from sync.sync_integration import _sync_wrapper
+            if _sync_wrapper:
+                result = _sync_wrapper.delete_product(product_id)
+                return jsonify(result)
+        except ImportError:
+            pass
+        
+        # Fallback - usuń lokalnie
+        from utils.data_utils import load_products
+        products = load_products()
+        products = [p for p in products if p['id'] != product_id]
+        
+        with open('data/products.txt', 'w', encoding='utf-8') as f:
+            for product in products:
+                f.write(json.dumps(product, ensure_ascii=False) + '\n')
+        
+        return jsonify({'success': True, 'message': 'Product deleted locally'})
+        
+    except Exception as e:
+        logger.error(f"Error in delete_product: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 
 @product_bp.route('/find_in_shops', methods=['POST'])
 def find_in_shops():
@@ -87,13 +139,70 @@ def search_product_in_shop():
 
 @product_bp.route('/update_product_link', methods=['POST'])
 def update_product_link():
-    """API - aktualizuje link produktu"""
-    return links_manager.update_product_link()
+    """API - aktualizuje link produktu - ROZSZERZONE"""
+    try:
+        data = request.get_json()
+        link_id = data.get('link_id')
+        
+        if not link_id:
+            return jsonify({'success': False, 'error': 'Brak link_id'})
+        
+        # NOWE: Użyj sync wrapper
+        from sync.sync_integration import _sync_wrapper
+        if _sync_wrapper:
+            result = _sync_wrapper.update_link(link_id, data)
+            return jsonify(result)
+        else:
+            # Fallback do starego kodu
+            return links_manager.update_product_link()
+            
+    except Exception as e:
+        logger.error(f"Error in update_product_link: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @product_bp.route('/delete_product_link', methods=['POST'])
 def delete_product_link():
-    """API - usuwa link produktu"""
-    return links_manager.delete_product_link()
+    """API - usuwa link produktu - ROZSZERZONE"""
+    try:
+        data = request.get_json()
+        link_id = data.get('link_id')
+        
+        if not link_id:
+            return jsonify({'success': False, 'error': 'Brak link_id'})
+        
+        # NOWE: Użyj sync wrapper
+        from sync.sync_integration import _sync_wrapper
+        if _sync_wrapper:
+            result = _sync_wrapper.delete_link(link_id)
+            return jsonify(result)
+        else:
+            # Fallback do starego kodu
+            return links_manager.delete_product_link()
+            
+    except Exception as e:
+        logger.error(f"Error in delete_product_link: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+    
+@product_bp.route('/update_substitute_group', methods=['POST'])
+def update_substitute_group():
+    """API - aktualizuje grupę zamienników"""
+    try:
+        data = request.get_json()
+        group_id = data.get('group_id')
+        
+        if not group_id:
+            return jsonify({'success': False, 'error': 'Brak group_id'})
+        
+        from sync.sync_integration import _sync_wrapper
+        if _sync_wrapper:
+            result = _sync_wrapper.update_substitute_group(group_id, data)
+            return jsonify(result)
+        else:
+            return jsonify({'success': False, 'error': 'Sync not available'})
+            
+    except Exception as e:
+        logger.error(f"Error in update_substitute_group: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @product_bp.route('/add_found_link', methods=['POST'])
 def add_found_link():
@@ -669,20 +778,25 @@ def get_all_substitute_groups():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@product_bp.route('/api/substitutes/groups/<group_id>', methods=['DELETE'])
-def delete_substitute_group(group_id):
+@product_bp.route('/delete_substitute_group', methods=['POST'])
+def delete_substitute_group():
     """API - usuwa grupę zamienników"""
     try:
-        from substitute_manager import substitute_manager
-        success = substitute_manager.delete_substitute_group(group_id)
-        if success:
-            return jsonify({'success': True, 'message': 'Grupa została usunięta'})
-        else:
-            return jsonify({'success': False, 'error': 'Grupa nie została znaleziona'})
+        data = request.get_json()
+        group_id = data.get('group_id')
         
-    except ImportError:
-        return jsonify({'success': False, 'error': 'Moduł zamienników niedostępny'})
+        if not group_id:
+            return jsonify({'success': False, 'error': 'Brak group_id'})
+        
+        from sync.sync_integration import _sync_wrapper
+        if _sync_wrapper:
+            result = _sync_wrapper.delete_substitute_group(group_id)
+            return jsonify(result)
+        else:
+            return jsonify({'success': False, 'error': 'Sync not available'})
+            
     except Exception as e:
+        logger.error(f"Error in delete_substitute_group: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @product_bp.route('/api/products/search')
