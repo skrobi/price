@@ -16,19 +16,24 @@
 - 🔍 **Auto-wyszukiwanie** - Znajdowanie produktów w nowych sklepach
 - 📊 **Historia cen** - Śledzenie zmian w czasie
 
-## 🚀 Szybka instalacja
+# 🚀 Przewodnik uruchomienia Price Tracker
 
+## 📋 Wymagania
+- Python 3.7+
+- Połączenie z internetem
+
+---
+
+## 🔧 Opcja 1: Z Git
+
+### 1. Zainstaluj Python
+- Pobierz z [python.org](https://python.org/downloads)
+- **WAŻNE**: Zaznacz "Add Python to PATH"
+
+### 2. Sklonuj repozytorium
 ```bash
-# Sklonuj repozytorium
 git clone https://github.com/username/price-tracker.git
 cd price-tracker
-
-# Zainstaluj zależności
-pip install flask beautifulsoup4 requests urllib3 lxml
-
-# Uruchom aplikację
-python app.py
-```
 
 Aplikacja będzie dostępna pod adresem: **http://localhost:5000**
 
