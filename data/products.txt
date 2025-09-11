@@ -1,4 +1,4 @@
-{"id": 14, "name": "Produkt z Lozyskaplock.Pl", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-10 11:34:53"}
+{"id": 14, "name": "WD40", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-10 11:34:53"}
 {"id": 13, "name": "Suport rowerowy ACCENT AIR", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-08 22:13:23"}
 {"id": 12, "name": "Giant Revolt 1 M/L", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-05 12:47:44"}
 {"id": 10, "name": "Giant Revolt 0 2024 Pyrite Brown M/L", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-05 12:30:36"}

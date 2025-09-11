@@ -232,58 +232,58 @@ class ProductManager:
     
     def product_detail(self, product_id):
         """Szczegóły produktu - Z PEŁNYM DEBUGOWANIEM"""
-        print(f"\n🔍 DEBUG PRODUCT_DETAIL START - product_id: {product_id}")
+        #print(f"\n🔍 DEBUG PRODUCT_DETAIL START - product_id: {product_id}")
         
         try:
             # KROK 1: Załaduj produkty
-            print("📦 KROK 1: Ładowanie produktów...")
+            #print("📦 KROK 1: Ładowanie produktów...")
             products = load_products()
-            print(f"   ✅ Załadowano {len(products)} produktów")
-            print(f"   📋 Typy produktów: {[type(p) for p in products[:3]]}")
+            #print(f"   ✅ Załadowano {len(products)} produktów")
+            #print(f"   📋 Typy produktów: {[type(p) for p in products[:3]]}")
             
             # KROK 2: Znajdź konkretny produkt
-            print(f"🔎 KROK 2: Szukanie produktu ID {product_id}...")
+            #print(f"🔎 KROK 2: Szukanie produktu ID {product_id}...")
             product = None
             for i, p in enumerate(products):
-                print(f"   Produkt {i}: typ={type(p)}, dict={isinstance(p, dict)}")
+                #print(f"   Produkt {i}: typ={type(p)}, dict={isinstance(p, dict)}")
                 if isinstance(p, dict):
                     p_id = p.get('id')
-                    print(f"     ID: {p_id} (typ: {type(p_id)})")
+                    #print(f"     ID: {p_id} (typ: {type(p_id)})")
                     if p_id == product_id:
                         product = p
-                        print(f"   ✅ ZNALEZIONO! {p.get('name', 'Bez nazwy')}")
+                        #print(f"   ✅ ZNALEZIONO! {p.get('name', 'Bez nazwy')}")
                         break
             
             if not product:
                 print("   ❌ PRODUKT NIE ZNALEZIONY!")
                 available_ids = [p.get('id') for p in products if isinstance(p, dict)]
-                print(f"   📋 Dostępne ID: {available_ids}")
+                #print(f"   📋 Dostępne ID: {available_ids}")
                 flash('Produkt nie został znaleziony')
                 return redirect(url_for('products.products'))
             
             # KROK 3: Załaduj linki
             print("🔗 KROK 3: Ładowanie linków...")
             links = load_links()
-            print(f"   ✅ Załadowano {len(links)} linków")
+            #print(f"   ✅ Załadowano {len(links)} linków")
             
             product_links = []
             for link in links:
                 if isinstance(link, dict) and link.get('product_id') == product_id:
                     product_links.append(link)
-                    print(f"   🔗 Link: {link.get('shop_id')} -> {link.get('url', '')[:50]}...")
+                    #print(f"   🔗 Link: {link.get('shop_id')} -> {link.get('url', '')[:50]}...")
             
-            print(f"   📊 Znaleziono {len(product_links)} linków dla produktu")
+            #print(f"   📊 Znaleziono {len(product_links)} linków dla produktu")
             
             # KROK 4: Załaduj ceny
             print("💰 KROK 4: Ładowanie cen...")
             latest_prices = get_latest_prices()
-            print(f"   ✅ Załadowano {len(latest_prices)} cen")
-            print(f"   📋 Przykładowe klucze cen: {list(latest_prices.keys())[:5]}")
+            #print(f"   ✅ Załadowano {len(latest_prices)} cen")
+            #print(f"   📋 Przykładowe klucze cen: {list(latest_prices.keys())[:5]}")
             
             # KROK 5: Dodaj ceny do linków
             print("🔄 KROK 5: Łączenie cen z linkami...")
             for i, link in enumerate(product_links):
-                print(f"   🔗 Link {i+1}: {link.get('shop_id')}")
+                #print(f"   🔗 Link {i+1}: {link.get('shop_id')}")
                 
                 # Resetuj ceny
                 link['price'] = None
@@ -301,7 +301,7 @@ class ProductManager:
                     price_shop_id = price_data.get('shop_id')
                     
                     if price_product_id == product_id and price_shop_id == link.get('shop_id'):
-                        print(f"     ✅ ZNALEZIONO CENĘ! {price_data.get('price')} {price_data.get('currency', 'PLN')}")
+                        #print(f"     ✅ ZNALEZIONO CENĘ! {price_data.get('price')} {price_data.get('currency', 'PLN')}")
                         found_price = True
                         
                         try:
@@ -312,7 +312,7 @@ class ProductManager:
                             
                             # BEZPIECZNE formatowanie daty
                             created_date = price_data.get('created', '')
-                            print(f"     📅 Data: '{created_date}' (typ: {type(created_date)})")
+                            #print(f"     📅 Data: '{created_date}' (typ: {type(created_date)})")
                             
                             if created_date and isinstance(created_date, str):
                                 try:
@@ -321,19 +321,19 @@ class ProductManager:
                                         date_part = created_date.split('T')[0]
                                         time_part = created_date.split('T')[1][:8]
                                         link['price_updated'] = f"{date_part} {time_part}"
-                                        print(f"     📅 Sformatowana data: {link['price_updated']}")
+                                        #print(f"     📅 Sformatowana data: {link['price_updated']}")
                                     elif len(created_date) >= 16:
                                         link['price_updated'] = created_date[:16]
-                                        print(f"     📅 Obcięta data: {link['price_updated']}")
+                                        #print(f"     📅 Obcięta data: {link['price_updated']}")
                                     else:
                                         link['price_updated'] = created_date
-                                        print(f"     📅 Oryginalna data: {link['price_updated']}")
+                                        #print(f"     📅 Oryginalna data: {link['price_updated']}")
                                 except Exception as date_error:
-                                    print(f"     ❌ BŁĄD formatowania daty: {date_error}")
+                                    #print(f"     ❌ BŁĄD formatowania daty: {date_error}")
                                     link['price_updated'] = str(created_date) or 'Błąd daty'
                             else:
                                 link['price_updated'] = 'Brak daty'
-                                print(f"     📅 Brak daty lub nieprawidłowy typ")
+                                #print(f"     📅 Brak daty lub nieprawidłowy typ")
                                 
                         except (ValueError, TypeError) as e:
                             print(f"     ❌ BŁĄD przetwarzania ceny: {e}")
@@ -343,10 +343,7 @@ class ProductManager:
                 if not found_price:
                     print(f"     ❌ Brak ceny dla {link.get('shop_id')}")
             
-            # KROK 6: Renderuj template
-            print("🎨 KROK 6: Renderowanie template...")
-            print(f"   📦 Produkt: {product.get('name', 'Bez nazwy')}")
-            print(f"   🔗 Linki: {len(product_links)}")
+            
             
             # SPRAWDŹ czy template istnieje
             try:

@@ -254,6 +254,10 @@ class ConflictResolver:
         if strategy is None:
             strategy = self.default_strategies.get(conflict.entity_type, ConflictStrategy.NEWEST_WINS)
         
+        logger.info(f"CONFLICT RESOLVE: {conflict.entity_type} ID={conflict.entity_id}")
+        logger.info(f"LOCAL: {conflict.local_data}")
+        logger.info(f"REMOTE: {conflict.remote_data}")
+        logger.info(f"STRATEGY: {strategy.value}")
         logger.info(f"Resolving {conflict.conflict_type.value} conflict for {conflict.entity_type} "
                    f"{conflict.entity_id} using {strategy.value}")
         
@@ -262,12 +266,15 @@ class ConflictResolver:
         try:
             if strategy == ConflictStrategy.API_WINS:
                 resolved_data = conflict.remote_data.copy()
+                logger.info(f"API_WINS: using remote data")
             
             elif strategy == ConflictStrategy.LOCAL_WINS:
                 resolved_data = conflict.local_data.copy()
+                logger.info(f"LOCAL_WINS: using local data")
             
             elif strategy == ConflictStrategy.NEWEST_WINS:
                 resolved_data = self._resolve_by_timestamp(conflict.local_data, conflict.remote_data)
+                logger.info(f"NEWEST_WINS: chose data")
             
             elif strategy == ConflictStrategy.MERGE:
                 resolved_data = self._merge_data(conflict.local_data, conflict.remote_data, conflict.entity_type)

@@ -201,6 +201,11 @@ class OfflineQueue:
         Returns:
             Dict ze statystykami przetwarzania
         """
+        # Sprawdź czy circuit breaker jest OPEN
+        if hasattr(api_client, 'circuit_breaker') and api_client.circuit_breaker.state == 'OPEN':
+            logger.info("Circuit breaker OPEN - skipping queue processing")
+            return {'processed': 0, 'failed': 0, 'skipped': len(self.queue)}
+        
         if not api_client.is_online:
             logger.warning("API is offline, skipping queue processing")
             return {'processed': 0, 'failed': 0, 'skipped': len(self.queue)}
@@ -228,6 +233,11 @@ class OfflineQueue:
                 logger.debug(f"Successfully processed {action} from queue")
                 
             except Exception as e:
+                # Sprawdź czy circuit breaker się otworzył - przerwij przetwarzanie
+                if 'Circuit breaker is OPEN' in str(e):
+                    logger.warning("Circuit breaker opened during processing - stopping queue")
+                    break
+                    
                 self.mark_as_failed(queue_id, str(e))
                 failed += 1
                 logger.error(f"Failed to process {action} from queue: {e}")

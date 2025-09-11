@@ -740,11 +740,15 @@ def save_shop_config_api_first(shop_config_data: Dict[str, Any]) -> Dict[str, An
 
 def _save_shop_config_local(shop_config_data):
     """Helper dla lokalnego zapisu shop config"""
-    from shop_config import shop_config
-    if hasattr(shop_config, '_original_save_shop_config'):
-        shop_config._original_save_shop_config(shop_config_data)
-    else:
-        shop_config.save_shop_config(shop_config_data)
+    try:
+        from shop_config import shop_config
+        if hasattr(shop_config, '_original_save_shop_config'):
+            shop_config._original_save_shop_config(shop_config_data)
+        else:
+            shop_config.save_shop_config(shop_config_data)
+    except Exception as e:
+        logger.error(f"Error saving shop config locally: {e}")
+        raise
 
 # =============================================================================
 # MONKEY PATCHING - NAPRAWIONE
@@ -1125,32 +1129,34 @@ Brakujące funkcje API-first do implementacji
 # =============================================================================
 
 def update_product_api_first(product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
-    """API-first aktualizacja produktu"""
+    """API-first update produktu z logami"""
+    logger.info(f"UPDATE PRODUCT START: ID={product_id}, data={product_data}")
+    
     try:
         if not _sync_wrapper or not _sync_wrapper.sync_manager:
+            logger.warning("No sync wrapper - fallback to local")
             return _fallback_update_product_local(product_id, product_data)
         
         sync_manager = _sync_wrapper.sync_manager
         
         if sync_manager.is_online and sync_manager.api_client:
+            logger.info(f"API UPDATE: Sending to server...")
+            
             # 1. NAJPIERW API
-            api_response = sync_manager.api_client.update_product(product_id, product_data)
+            api_response = sync_manager.api_client.update_product(
+                product_id, product_data['name'], product_data.get('ean', '')
+            )
+            
+            logger.info(f"API RESPONSE: {api_response}")
             
             if api_response.get('success'):
-                # 2. POTEM zapisz lokalnie
-                products = load_products()
-                for i, product in enumerate(products):
-                    if product['id'] == product_id:
-                        products[i].update(product_data)
-                        products[i]['updated'] = datetime.now().isoformat()
-                        products[i]['synced'] = True
-                        break
+                logger.info(f"API SUCCESS - updating locally")
+                # 2. POTEM lokalnie
+                original_func = _original_functions.get('update_product') 
+                if original_func:
+                    original_func(product_data)
                 
-                # Zapisz zaktualizowane produkty
-                with open('data/products.txt', 'w', encoding='utf-8') as f:
-                    for product in products:
-                        f.write(json.dumps(product, ensure_ascii=False) + '\n')
-                
+                logger.info(f"UPDATE COMPLETE: synced to API and local")
                 return {
                     'success': True,
                     'product_id': product_id,
@@ -1158,11 +1164,9 @@ def update_product_api_first(product_id: int, product_data: Dict[str, Any]) -> D
                     'message': 'Product updated via API'
                 }
             else:
-                # API error - fallback offline
-                return _save_with_temp_update(product_id, product_data)
-        else:
-            # API offline
-            return _save_with_temp_update(product_id, product_data)
+                logger.warning(f"API FAILED: {api_response}")
+                return _save_with_temp_id(product_data, 'products', 
+                                        _original_functions.get('update_product'))
             
     except Exception as e:
         logger.error(f"Error in update_product_api_first: {e}")
