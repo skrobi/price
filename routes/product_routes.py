@@ -111,7 +111,7 @@ def get_available_shops():
 @product_bp.route('/search_in_single_shop', methods=['POST'])
 def search_in_single_shop():
     """API - wyszukuje w pojedynczym sklepie"""
-    return product_manager.search_in_single_shop()
+    return product_manager.search_product_in_shop()
 
 @product_bp.route('/product/<int:product_id>/find_missing')
 def find_missing_for_product(product_id):
@@ -705,10 +705,8 @@ def get_product_substitutes(product_id):
 
 @product_bp.route('/api/substitutes/create_group', methods=['POST'])
 def create_substitute_group():
-    """API - tworzy nową grupę zamienników"""
+    """API - tworzy nową grupę zamienników - API-FIRST"""
     try:
-        from substitute_manager import substitute_manager
-        
         data = request.get_json()
         name = data.get('name', '').strip()
         product_ids = data.get('product_ids', [])
@@ -719,26 +717,39 @@ def create_substitute_group():
         if len(product_ids) < 2:
             return jsonify({'success': False, 'error': 'Grupa musi zawierać co najmniej 2 produkty'})
         
-        # Sprawdź czy produkty istnieją
+        # Walidacja produktów
+        from utils.data_utils import load_products
         products = load_products()
         existing_product_ids = {p['id'] for p in products}
-        
         valid_product_ids = [pid for pid in product_ids if pid in existing_product_ids]
         
         if len(valid_product_ids) < 2:
             return jsonify({'success': False, 'error': 'Za mało prawidłowych produktów'})
         
-        # Utwórz grupę
+        # ZMIANA: Użyj sync wrapper zamiast bezpośrednio substitute_manager
+        try:
+            from sync.sync_integration import _sync_wrapper
+            if _sync_wrapper:
+                group_data = {
+                    'name': name,
+                    'product_ids': valid_product_ids
+                }
+                result = _sync_wrapper.save_substitute_group(group_data)
+                return jsonify(result)
+        except ImportError:
+            pass
+        
+        # Fallback do starego kodu
+        from substitute_manager import substitute_manager
         group_id = substitute_manager.create_substitute_group(name, valid_product_ids)
         
         return jsonify({
             'success': True,
             'group_id': group_id,
-            'message': f'Utworzono grupę "{name}" z {len(valid_product_ids)} produktami'
+            'synced': False,
+            'message': f'Utworzono grupę "{name}" lokalnie'
         })
         
-    except ImportError:
-        return jsonify({'success': False, 'error': 'Moduł zamienników niedostępny'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

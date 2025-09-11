@@ -432,7 +432,7 @@ class ProductManager:
             return jsonify({'success': False, 'error': str(e)})
     
     def find_in_shops(self):
-        """API - wyszukuje produkt w sklepach"""
+        """API - wyszukuje produkt we wszystkich skonfigurowanych sklepach"""
         try:
             data = request.get_json()
             product_id = data.get('product_id')
@@ -440,19 +440,109 @@ class ProductManager:
             if not product_id:
                 return jsonify({'success': False, 'error': 'Brak product_id'})
             
-            # Znajdź produkt
-            products = load_products()
-            product = next((p for p in products if isinstance(p, dict) and p.get('id') == product_id), None)
+            # Użyj istniejącej funkcji z finder_bp
+            from utils.data_utils import load_products, load_links
+            from shop_config import shop_config
+            from product_finder import product_finder
             
+            # Pobierz produkt
+            products = load_products()
+            product = next((p for p in products if p.get('id') == product_id), None)
             if not product:
                 return jsonify({'success': False, 'error': 'Produkt nie został znaleziony'})
             
-            # Tu może być implementacja wyszukiwania
-            # Na razie zwróć placeholder
+            # Pobierz sklepy ze skonfigurowanym wyszukiwaniem
+            all_shops = shop_config.get_all_shops()
+            shops_with_search = [s for s in all_shops 
+                            if s.get('search_config') and s['search_config'].get('search_url')]
+            
+            # Sprawdź gdzie produkt już istnieje
+            existing_links = load_links()
+            existing_shops = {link['shop_id'] for link in existing_links 
+                            if link.get('product_id') == product_id}
+            
+            # Sklepy do przeszukania
+            shops_to_search = [s for s in shops_with_search 
+                            if s['shop_id'] not in existing_shops]
+            
+            if not shops_to_search:
+                return jsonify({
+                    'success': True,
+                    'message': f'Produkt już dostępny we wszystkich sklepach',
+                    'summary': {
+                        'shops_searched': 0,
+                        'successful_searches': 0,
+                        'failed_searches': 0,
+                        'total_found_products': 0,
+                        'existing_shops': len(existing_shops),
+                        'total_configured_shops': len(shops_with_search)
+                    },
+                    'results': []
+                })
+            
+            # Wyszukaj w każdym sklepie używając istniejącej logiki
+            results = []
+            successful = 0
+            failed = 0
+            total_found = 0
+            
+            for shop in shops_to_search:
+                try:
+                    search_config = shop['search_config']
+                    debug_info = []
+                    
+                    # Użyj tej samej logiki co search_product_in_shop
+                    search_result = product_finder.search_product(
+                        search_config,
+                        product['name'],
+                        product.get('ean'),
+                        debug_info
+                    )
+                    
+                    shop_result = {
+                        'shop_id': shop['shop_id'],
+                        'shop_name': shop.get('name', shop['shop_id']),
+                        'search_success': search_result.get('success', False),
+                        'debug_info': debug_info
+                    }
+                    
+                    if search_result.get('success'):
+                        found_products = search_result.get('results', [])
+                        shop_result['found_products'] = found_products
+                        shop_result['total_found'] = len(found_products)
+                        total_found += len(found_products)
+                        successful += 1
+                    else:
+                        shop_result['error'] = search_result.get('error', 'Nieznany błąd')
+                        shop_result['total_found'] = 0
+                        failed += 1
+                    
+                    results.append(shop_result)
+                    
+                except Exception as e:
+                    failed += 1
+                    results.append({
+                        'shop_id': shop['shop_id'],
+                        'shop_name': shop.get('name', shop['shop_id']),
+                        'search_success': False,
+                        'error': str(e),
+                        'total_found': 0,
+                        'debug_info': [f'Exception: {str(e)}']
+                    })
+            
             return jsonify({
                 'success': True,
-                'message': f'Wyszukiwanie "{product["name"]}" w sklepach...',
-                'results': []
+                'message': f'Przeszukano {len(shops_to_search)} sklepów',
+                'product': {'id': product_id, 'name': product['name']},
+                'summary': {
+                    'shops_searched': len(shops_to_search),
+                    'successful_searches': successful,
+                    'failed_searches': failed,
+                    'total_found_products': total_found,
+                    'existing_shops': len(existing_shops),
+                    'total_configured_shops': len(shops_with_search)
+                },
+                'results': results
             })
             
         except Exception as e:
@@ -539,18 +629,73 @@ class ProductManager:
             return jsonify({'success': False, 'error': str(e)})
     
     def search_product_in_shop(self):
-        """API - wyszukuje produkt w konkretnym sklepie"""
+        """API - wyszukuje produkt w konkretnym sklepie - KOMPLETNA WERSJA"""
         try:
-            data = request.get_json()
-            shop_id = data.get('shop_id')
-            product_id = data.get('product_id')
-            product_name = data.get('product_name')
-            ean = data.get('ean', '')
+            # DEBUG na początku
+            logger.info("=== SEARCH PRODUCT IN SHOP START ===")
             
-            if not all([shop_id, product_name]):
+            data = request.get_json()
+            logger.info(f"Received data: {data}")
+            
+            if not data:
+                logger.error("No JSON data received")
                 return jsonify({
                     'success': False,
-                    'error': 'Brak shop_id lub product_name'
+                    'error': 'Brak danych JSON',
+                    'debug': 'No JSON data received'
+                })
+            
+            shop_id = data.get('shop_id')
+            product_id = data.get('product_id')
+            
+            logger.info(f"Extracted - shop_id: {shop_id}, product_id: {product_id}")
+            
+            # Walidacja z szczegółowymi błędami
+            if not shop_id:
+                logger.error(f"Missing shop_id. Available keys: {list(data.keys())}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Brak shop_id',
+                    'debug': f'Available keys: {list(data.keys())}'
+                })
+            
+            if not product_id:
+                logger.error(f"Missing product_id. Available keys: {list(data.keys())}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Brak product_id',
+                    'debug': f'Available keys: {list(data.keys())}'
+                })
+            
+            # Pobierz dane produktu na podstawie product_id
+            from utils.data_utils import load_products
+            products = load_products()
+            
+            product = None
+            for p in products:
+                if p.get('id') == product_id:
+                    product = p
+                    break
+            
+            if not product:
+                logger.error(f"Product {product_id} not found in {len(products)} products")
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie znaleziono produktu o ID {product_id}',
+                    'debug': f'Searched in {len(products)} products'
+                })
+            
+            logger.info(f"Found product: {product.get('name')}")
+            
+            product_name = product.get('name', '')
+            ean = product.get('ean', '')
+            
+            if not product_name:
+                logger.error("Product has no name")
+                return jsonify({
+                    'success': False,
+                    'error': 'Produkt nie ma nazwy',
+                    'debug': f'Product data: {product}'
                 })
             
             # Import product finder
@@ -558,36 +703,55 @@ class ProductManager:
                 from product_finder import product_finder
                 from shop_config import shop_config
                 
+                logger.info(f"Importing modules successful")
+                
                 # Pobierz konfigurację wyszukiwania dla sklepu
                 shop_config_data = shop_config.get_shop_config(shop_id)
                 search_config = shop_config_data.get('search_config', {})
                 
+                logger.info(f"Shop config for {shop_id}: {search_config}")
+                
                 if not search_config.get('search_url'):
+                    logger.error(f"No search URL for shop {shop_id}")
                     return jsonify({
                         'success': False,
-                        'error': f'Brak konfiguracji wyszukiwania dla sklepu {shop_id}'
+                        'error': f'Brak konfiguracji wyszukiwania dla sklepu {shop_id}',
+                        'debug': f'Shop config: {shop_config_data}'
                     })
                 
                 # Wykonaj wyszukiwanie
+                logger.info(f"Starting search for '{product_name}' in {shop_id}")
                 debug_info = []
+                
                 search_result = product_finder.search_product(
                     search_config, product_name, ean, debug_info
                 )
                 
-                # Dodaj debug info do wyniku
+                logger.info(f"Search completed. Result: {search_result}")
+                
+                # Dodaj informacje o produkcie do wyniku
+                search_result['product_id'] = product_id
+                search_result['product_name'] = product_name
+                search_result['shop_id'] = shop_id
                 search_result['debug'] = debug_info
                 
+                logger.info("=== SEARCH PRODUCT IN SHOP SUCCESS ===")
                 return jsonify(search_result)
                 
             except ImportError as e:
+                logger.error(f"Import error: {e}")
                 return jsonify({
                     'success': False,
-                    'error': f'Brak modułu product_finder: {str(e)}'
+                    'error': f'Brak modułu product_finder: {str(e)}',
+                    'debug': f'Import error: {type(e).__name__}'
                 })
                 
         except Exception as e:
-            logger.error(f"Error in search_product_in_shop: {e}")
+            logger.error(f"Exception in search_product_in_shop: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return jsonify({
                 'success': False,
-                'error': str(e)
+                'error': f'Błąd wewnętrzny: {str(e)}',
+                'debug': f'Exception: {type(e).__name__}'
             })

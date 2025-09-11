@@ -586,7 +586,7 @@ async function findInOtherShops() {
         const data = await response.json();
         
         if (data.success) {
-            displaySearchResults(data.results);
+            displaySearchResults(data);
         } else {
             showNotification('❌ Błąd wyszukiwania: ' + data.error, 'error');
         }

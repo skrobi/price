@@ -320,7 +320,7 @@ class SyncManager:
             if not api_response.get('success'):
                 raise Exception(f"API error: {api_response.get('error')}")
             
-            groups = api_response.get('substitute_groups', [])
+            groups = api_response.get('groups', [])  # ZMIEŃ substitute_groups → groups
             
             # Zapisz grupy do pliku
             with open('data/substitutes.txt', 'w', encoding='utf-8') as f:

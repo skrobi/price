@@ -8,8 +8,9 @@
 {"product_id": 4, "shop_id": "aptekacurate", "price": "31.99", "currency": "PLN", "created": "2025-09-11 12:08:04", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 5, "shop_id": "doz", "price": "27.99", "currency": "PLN", "created": "2025-09-10 09:06:26", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 5, "shop_id": "swiatleku", "price": "21.90", "currency": "PLN", "created": "2025-09-11 12:08:16", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
+{"product_id": 6, "shop_id": "allegro-apteka_codzienna", "price": "18.95", "currency": "PLN", "created": "2025-09-11 16:19:16", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 6, "shop_id": "aptekacurate", "price": "17.46", "currency": "PLN", "created": "2025-09-11 12:07:53", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
-{"product_id": 6, "shop_id": "rosa24", "price": "6.86", "currency": "PLN", "created": "2025-09-11 12:08:30", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
+{"product_id": 6, "shop_id": "rosa24", "price": "21.87", "currency": "PLN", "created": "2025-09-11 14:42:45", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 6, "shop_id": "swiatleku", "price": "25.02", "currency": "PLN", "created": "2025-09-11 12:07:49", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 7, "shop_id": "allegro-aptekarosa", "price": "15.24", "currency": "PLN", "created": "2025-09-11 12:06:41", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 7, "shop_id": "apteline", "price": "18.99", "currency": "PLN", "created": "2025-09-11 12:07:35", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
@@ -22,3 +23,5 @@
 {"product_id": 13, "shop_id": "centrumrowerowe_pl", "price": "87.99", "currency": "PLN", "created": "2025-09-11 12:06:47", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 14, "shop_id": "lozyskaplock_pl", "price": "37.48", "currency": "PLN", "created": "2025-09-11 12:06:33", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
 {"product_id": 15, "shop_id": "doz", "price": "19.39", "currency": "PLN", "created": "2025-09-11 12:06:15", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
+{"product_id": 16, "shop_id": "allegro-apteka_codzienna", "price": "24.55", "currency": "PLN", "created": "2025-09-11 16:17:27", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}
+{"product_id": 16, "shop_id": "doz", "price": "23.79", "currency": "PLN", "created": "2025-09-11 15:18:06", "user_id": "USR-9B25EFB9F425-77429277", "source": "api_sync"}

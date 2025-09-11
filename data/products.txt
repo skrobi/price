@@ -1,3 +1,4 @@
+{"id": 16, "name": "APAP 500 mg 50 tabletek", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-11 15:17:52"}
 {"id": 15, "name": "Cirrus Duo (Cirrus), 5 mg+120 mg, tabletki o przedłużonym uwalnianiu, 6 szt.", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-11 12:05:06"}
 {"id": 14, "name": "WD-40 Specialist Smar HP Redukujący Tarcie 400ml", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-10 11:34:53"}
 {"id": 13, "name": "Suport rowerowy ACCENT AIR", "ean": "", "created_by": "USR-9B25EFB9F425-77429277", "created_at": "2025-09-08 22:13:23"}
